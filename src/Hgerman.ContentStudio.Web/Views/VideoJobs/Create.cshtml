@@ -1,0 +1,150 @@
+@model Hgerman.ContentStudio.Web.Models.CreateVideoJobViewModel
+@using Hgerman.ContentStudio.Domain.Enums
+
+@{
+    ViewData["Title"] = "Create Video Job";
+}
+
+<div class="container py-4">
+    <div class="row justify-content-center">
+        <div class="col-lg-10">
+            <div class="card shadow-sm border-0">
+                <div class="card-body p-4">
+                    <h2 class="mb-3">Create Video Job</h2>
+                    <p class="text-muted mb-4">
+                        You can create a normal AI-generated job or upload one product image and build the video around it.
+                    </p>
+
+                    <form asp-action="Create" method="post" enctype="multipart/form-data">
+                        @Html.AntiForgeryToken()
+
+                        <div asp-validation-summary="ModelOnly" class="text-danger mb-3"></div>
+
+                        <div class="row g-3">
+                            <div class="col-md-6">
+                                <label asp-for="Title" class="form-label"></label>
+                                <input asp-for="Title" class="form-control" />
+                                <span asp-validation-for="Title" class="text-danger"></span>
+                            </div>
+
+                            <div class="col-md-6">
+                                <label asp-for="Topic" class="form-label"></label>
+                                <input asp-for="Topic" class="form-control" />
+                                <span asp-validation-for="Topic" class="text-danger"></span>
+                            </div>
+
+                            <div class="col-12">
+                                <label asp-for="SourcePrompt" class="form-label"></label>
+                                <textarea asp-for="SourcePrompt" class="form-control" rows="4"
+                                          placeholder="Example: Create a luxury product reel with elegant motion and premium text overlays."></textarea>
+                                <span asp-validation-for="SourcePrompt" class="text-danger"></span>
+                            </div>
+
+                            <div class="col-md-4">
+                                <label asp-for="ProjectId" class="form-label"></label>
+                                <input asp-for="ProjectId" class="form-control" />
+                                <span asp-validation-for="ProjectId" class="text-danger"></span>
+                            </div>
+
+                            <div class="col-md-4">
+                                <label asp-for="LanguageCode" class="form-label"></label>
+                                <input asp-for="LanguageCode" class="form-control" />
+                                <span asp-validation-for="LanguageCode" class="text-danger"></span>
+                            </div>
+
+                            <div class="col-md-4">
+                                <label asp-for="DurationTargetSec" class="form-label"></label>
+                                <input asp-for="DurationTargetSec" class="form-control" />
+                                <span asp-validation-for="DurationTargetSec" class="text-danger"></span>
+                            </div>
+
+                            <div class="col-md-4">
+                                <label asp-for="PlatformType" class="form-label"></label>
+                                <select asp-for="PlatformType"
+                                        asp-items="ViewBag.PlatformTypes"
+                                        class="form-select"></select>
+                                <span asp-validation-for="PlatformType" class="text-danger"></span>
+                            </div>
+
+                            <div class="col-md-4">
+                                <label asp-for="ToneType" class="form-label"></label>
+                                <select asp-for="ToneType"
+                                        asp-items="ViewBag.ToneTypes"
+                                        class="form-select"></select>
+                                <span asp-validation-for="ToneType" class="text-danger"></span>
+                            </div>
+
+                            <div class="col-md-4">
+                                <label asp-for="AspectRatio" class="form-label"></label>
+                                <select asp-for="AspectRatio"
+                                        asp-items="ViewBag.AspectRatios"
+                                        class="form-select"></select>
+                                <span asp-validation-for="AspectRatio" class="text-danger"></span>
+                            </div>
+
+                            <div class="col-md-6">
+                                <label asp-for="VoiceProvider" class="form-label"></label>
+                                <input asp-for="VoiceProvider" class="form-control" />
+                                <span asp-validation-for="VoiceProvider" class="text-danger"></span>
+                            </div>
+
+                            <div class="col-md-6">
+                                <label asp-for="VoiceName" class="form-label"></label>
+                                <input asp-for="VoiceName" class="form-control" />
+                                <span asp-validation-for="VoiceName" class="text-danger"></span>
+                            </div>
+
+                            <div class="col-md-6">
+                                <label asp-for="InputMode" class="form-label"></label>
+                                <select asp-for="InputMode" class="form-select" id="inputModeSelect">
+                                    <option value="@((int)InputModeType.AiOnly)">AiOnly</option>
+                                    <option value="@((int)InputModeType.UploadedSingleImage)">UploadedSingleImage</option>
+                                </select>
+                                <span asp-validation-for="InputMode" class="text-danger"></span>
+                            </div>
+
+                            <div class="col-md-6" id="sourceImageWrap" style="display:none;">
+                                <label asp-for="SourceImage" class="form-label">Source Image</label>
+                                <input asp-for="SourceImage" type="file" class="form-control" accept=".jpg,.jpeg,.png,.webp,image/jpeg,image/png,image/webp" />
+                                <span asp-validation-for="SourceImage" class="text-danger"></span>
+                                <div class="form-text">Upload one product photo to create the video from it.</div>
+                            </div>
+
+                            <div class="col-md-6 form-check mt-3 ms-2">
+                                <input asp-for="SubtitleEnabled" class="form-check-input" />
+                                <label asp-for="SubtitleEnabled" class="form-check-label"></label>
+                            </div>
+
+                            <div class="col-md-6 form-check mt-3 ms-2">
+                                <input asp-for="ThumbnailEnabled" class="form-check-input" />
+                                <label asp-for="ThumbnailEnabled" class="form-check-label"></label>
+                            </div>
+                        </div>
+
+                        <div class="mt-4 d-flex gap-2">
+                            <button type="submit" class="btn btn-primary">Create Job</button>
+                            <a asp-action="Index" class="btn btn-outline-secondary">Back</a>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+@section Scripts {
+    <script>
+        (function () {
+            const select = document.getElementById('inputModeSelect');
+            const wrap = document.getElementById('sourceImageWrap');
+
+            function syncUploadVisibility() {
+                const val = parseInt(select.value);
+                wrap.style.display = val === 2 ? 'block' : 'none';
+            }
+
+            select.addEventListener('change', syncUploadVisibility);
+            syncUploadVisibility();
+        })();
+    </script>
+}

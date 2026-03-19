@@ -1,0 +1,47 @@
+@model DashboardSummaryDto
+@{
+    ViewData["Title"] = "Dashboard";
+}
+
+<div class="row g-3 mb-4">
+    <div class="col-md-3">
+        <div class="card shadow-sm border-0 stat-card">
+            <div class="card-body">
+                <div class="stat-label">Total Jobs</div>
+                <div class="stat-value">@Model.TotalJobs</div>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card shadow-sm border-0 stat-card">
+            <div class="card-body">
+                <div class="stat-label">Completed</div>
+                <div class="stat-value">@Model.CompletedJobs</div>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card shadow-sm border-0 stat-card">
+            <div class="card-body">
+                <div class="stat-label">Failed</div>
+                <div class="stat-value">@Model.FailedJobs</div>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card shadow-sm border-0 stat-card">
+            <div class="card-body">
+                <div class="stat-label">Queued / Processing</div>
+                <div class="stat-value">@Model.QueuedJobs</div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="card shadow-sm border-0">
+    <div class="card-body">
+        <h5 class="mb-3">Starter notes</h5>
+        <p class="text-muted mb-2">This starter project is wired for Azure SQL using the <strong>HgermanAppsDB</strong> database and is ready for your API integrations.</p>
+        <a asp-controller="VideoJobs" asp-action="Create" class="btn btn-dark">Create First Job</a>
+    </div>
+</div>

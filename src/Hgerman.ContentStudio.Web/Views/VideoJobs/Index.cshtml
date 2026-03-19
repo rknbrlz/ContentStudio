@@ -1,0 +1,44 @@
+@model IReadOnlyList<VideoJobListItemDto>
+@{
+    ViewData["Title"] = "Video Jobs";
+}
+
+<div class="card shadow-sm border-0">
+    <div class="card-body">
+        <div class="d-flex justify-content-between align-items-center mb-3">
+            <h5 class="mb-0">All Jobs</h5>
+            <a asp-action="Create" class="btn btn-dark">New Job</a>
+        </div>
+        <div class="table-responsive">
+            <table class="table table-hover align-middle">
+                <thead>
+                    <tr>
+                        <th>Job No</th>
+                        <th>Title</th>
+                        <th>Language</th>
+                        <th>Platform</th>
+                        <th>Status</th>
+                        <th>Step</th>
+                        <th>Created</th>
+                        <th></th>
+                    </tr>
+                </thead>
+                <tbody>
+                @foreach (var item in Model)
+                {
+                    <tr>
+                        <td>@item.JobNo</td>
+                        <td>@item.Title</td>
+                        <td>@item.LanguageCode</td>
+                        <td>@item.PlatformType</td>
+                        <td><span class="badge text-bg-secondary">@item.Status</span></td>
+                        <td>@item.CurrentStep</td>
+                        <td>@item.CreatedDate.ToString("yyyy-MM-dd HH:mm")</td>
+                        <td><a asp-action="Details" asp-route-id="@item.VideoJobId" class="btn btn-sm btn-outline-dark">Open</a></td>
+                    </tr>
+                }
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>

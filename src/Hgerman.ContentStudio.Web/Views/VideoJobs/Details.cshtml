@@ -1,0 +1,129 @@
+@model VideoJob
+@{
+    ViewData["Title"] = "Video Job Details";
+}
+@if (Model.PrimarySourceAsset != null)
+{
+    <div class="card mt-3">
+        <div class="card-body">
+            <h5 class="card-title">Source Image</h5>
+            <p class="text-muted mb-2">
+                This video job was created from an uploaded image.
+            </p>
+
+            <div class="small">
+                <div><strong>File:</strong> @Model.PrimarySourceAsset.FileName</div>
+                <div><strong>Mime:</strong> @Model.PrimarySourceAsset.MimeType</div>
+                <div><strong>Blob Path:</strong> @Model.PrimarySourceAsset.BlobPath</div>
+            </div>
+        </div>
+    </div>
+}
+<div class="row g-4">
+    <div class="col-lg-4">
+        <div class="card shadow-sm border-0 h-100">
+            <div class="card-body">
+                <h5 class="mb-3">Overview</h5>
+                <dl class="row small">
+                    <dt class="col-5">Job No</dt><dd class="col-7">@Model.JobNo</dd>
+                    <dt class="col-5">Title</dt><dd class="col-7">@Model.Title</dd>
+                    <dt class="col-5">Status</dt><dd class="col-7">@Model.Status</dd>
+                    <dt class="col-5">Step</dt><dd class="col-7">@Model.CurrentStep</dd>
+                    <dt class="col-5">Language</dt><dd class="col-7">@Model.LanguageCode</dd>
+                    <dt class="col-5">Platform</dt><dd class="col-7">@Model.PlatformType</dd>
+                    <dt class="col-5">Duration</dt><dd class="col-7">@Model.DurationTargetSec sec</dd>
+                </dl>
+                @if (Model.Status == VideoJobStatus.Failed)
+                {
+                    <form asp-action="Retry" asp-route-id="@Model.VideoJobId" method="post">
+                        @Html.AntiForgeryToken()
+                        <button type="submit" class="btn btn-dark">Retry Job</button>
+                    </form>
+                }
+            </div>
+        </div>
+    </div>
+    <div class="col-lg-8">
+        <div class="card shadow-sm border-0 mb-4">
+            <div class="card-body">
+                <h5 class="mb-3">Scenes</h5>
+                @if (Model.Scenes.Any())
+                {
+                    <div class="table-responsive">
+                        <table class="table table-sm align-middle">
+                            <thead>
+                                <tr>
+                                    <th>#</th>
+                                    <th>Text</th>
+                                    <th>Prompt</th>
+                                    <th>Duration</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                            @foreach (var scene in Model.Scenes.OrderBy(x => x.SceneNo))
+                            {
+                                <tr>
+                                    <td>@scene.SceneNo</td>
+                                    <td>@scene.SceneText</td>
+                                    <td>@scene.ScenePrompt</td>
+                                    <td>@scene.DurationSecond</td>
+                                </tr>
+                            }
+                            </tbody>
+                        </table>
+                    </div>
+                }
+                else
+                {
+                    <p class="text-muted mb-0">No scenes generated yet.</p>
+                }
+            </div>
+        </div>
+
+        <div class="card shadow-sm border-0 mb-4">
+            <div class="card-body">
+                <h5 class="mb-3">Assets</h5>
+                @if (Model.Assets.Any())
+                {
+                    <ul class="list-group list-group-flush">
+                        @foreach (var asset in Model.Assets.OrderBy(x => x.AssetType).ThenBy(x => x.AssetId))
+                        {
+                            <li class="list-group-item d-flex justify-content-between align-items-center px-0">
+                                <div>
+                                    <div class="fw-semibold">@asset.AssetType - @asset.FileName</div>
+                                    <div class="small text-muted">@asset.BlobPath</div>
+                                </div>
+                                <div class="small">@asset.Status</div>
+                            </li>
+                        }
+                    </ul>
+                }
+                else
+                {
+                    <p class="text-muted mb-0">No assets yet.</p>
+                }
+            </div>
+        </div>
+
+        <div class="card shadow-sm border-0">
+            <div class="card-body">
+                <h5 class="mb-3">Errors</h5>
+                @if (Model.ErrorLogs.Any())
+                {
+                    @foreach (var err in Model.ErrorLogs.OrderByDescending(x => x.ErrorLogId))
+                    {
+                        <div class="border rounded p-3 mb-2">
+                            <div class="fw-semibold">@err.StepName - @err.ErrorType</div>
+                            <div class="small text-muted">@err.CreatedDate.ToString("yyyy-MM-dd HH:mm")</div>
+                            <div>@err.ErrorMessage</div>
+                        </div>
+                    }
+                }
+                else
+                {
+                    <p class="text-muted mb-0">No errors logged.</p>
+                }
+            </div>
+        </div>
+    </div>
+</div>
