@@ -75,6 +75,7 @@ public class JobProcessor : IJobProcessor
             job.Status = VideoJobStatus.Processing;
             job.CurrentStep = VideoPipelineStep.ScriptGenerating;
             job.UpdatedDate = DateTime.UtcNow;
+
             await _db.SaveChangesAsync(cancellationToken);
 
             var script = await _scriptService.GenerateScriptAsync(job, cancellationToken);
