@@ -4,5 +4,8 @@ namespace Hgerman.ContentStudio.Application.Interfaces;
 
 public interface IImagePromptService
 {
-    Task<string> GenerateScenePromptAsync(VideoJob job, VideoScene scene, CancellationToken cancellationToken = default);
+    Task<string> GenerateScenePromptAsync(
+        VideoJob job,
+        VideoScene scene,
+        CancellationToken cancellationToken = default);
 }

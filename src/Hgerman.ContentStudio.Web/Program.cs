@@ -1,12 +1,11 @@
 using Hgerman.ContentStudio.Infrastructure.DependencyInjection;
-using Hgerman.ContentStudio.Application.Interfaces;
-using Hgerman.ContentStudio.Infrastructure.Services;
+using Hgerman.ContentStudio.Shared.Options;
 
 var builder = WebApplication.CreateBuilder(args);
 
 builder.Services.AddControllersWithViews();
+builder.Services.Configure<WorkerOptions>(builder.Configuration.GetSection("Worker"));
 builder.Services.AddContentStudioInfrastructure(builder.Configuration);
-builder.Services.AddScoped<IVideoJobService, VideoJobService>();
 
 var app = builder.Build();
 

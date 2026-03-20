@@ -11,12 +11,10 @@ namespace Hgerman.ContentStudio.Infrastructure.Services;
 public class VideoJobService : IVideoJobService
 {
     private readonly ContentStudioDbContext _db;
-    private readonly IStorageService _storageService;
 
-    public VideoJobService(ContentStudioDbContext db, IStorageService storageService)
+    public VideoJobService(ContentStudioDbContext db)
     {
         _db = db;
-        _storageService = storageService;
     }
 
     public async Task<int> CreateJobAsync(CreateVideoJobRequest request, CancellationToken cancellationToken = default)
@@ -40,7 +38,8 @@ public class VideoJobService : IVideoJobService
             InputMode = request.InputMode,
             Status = VideoJobStatus.Draft,
             CurrentStep = VideoPipelineStep.Draft,
-            CreatedDate = DateTime.UtcNow
+            CreatedDate = DateTime.UtcNow,
+            UpdatedDate = DateTime.UtcNow
         };
 
         _db.VideoJobs.Add(job);
@@ -48,58 +47,7 @@ public class VideoJobService : IVideoJobService
         return job.VideoJobId;
     }
 
-    public async Task<int> AttachUploadedSourceImageAsync(
-        int videoJobId,
-        string originalFileName,
-        string contentType,
-        byte[] fileBytes,
-        CancellationToken cancellationToken = default)
-    {
-        var job = await _db.VideoJobs.FirstAsync(x => x.VideoJobId == videoJobId, cancellationToken);
-
-        var ext = Path.GetExtension(originalFileName);
-        if (string.IsNullOrWhiteSpace(ext))
-        {
-            ext = contentType switch
-            {
-                "image/png" => ".png",
-                "image/webp" => ".webp",
-                _ => ".jpg"
-            };
-        }
-
-        var safeFileName = $"source_{videoJobId}_{DateTime.UtcNow:yyyyMMddHHmmssfff}{ext}";
-        var blobPath = $"video-jobs/{videoJobId}/uploads/{safeFileName}";
-
-        await _storageService.UploadBytesAsync(blobPath, fileBytes, contentType, cancellationToken);
-
-        var asset = new Asset
-        {
-            VideoJobId = videoJobId,
-            AssetType = AssetType.SourceUploadImage,
-            ProviderName = "UserUpload",
-            FileName = safeFileName,
-            BlobPath = blobPath,
-            PublicUrl = null,
-            MimeType = contentType,
-            FileSize = fileBytes.LongLength,
-            Status = VideoJobStatus.Completed,
-            CreatedDate = DateTime.UtcNow
-        };
-
-        _db.Assets.Add(asset);
-        await _db.SaveChangesAsync(cancellationToken);
-
-        job.InputMode = InputModeType.UploadedSingleImage;
-        job.PrimarySourceAssetId = asset.AssetId;
-        job.UpdatedDate = DateTime.UtcNow;
-
-        await _db.SaveChangesAsync(cancellationToken);
-
-        return asset.AssetId;
-    }
-
-    public async Task<List<VideoJobListItemDto>> GetJobListAsync(CancellationToken cancellationToken = default)
+    public async Task<IReadOnlyList<VideoJobListItemDto>> GetJobListAsync(CancellationToken cancellationToken = default)
     {
         return await _db.VideoJobs
             .OrderByDescending(x => x.VideoJobId)
@@ -122,31 +70,41 @@ public class VideoJobService : IVideoJobService
     {
         return await _db.VideoJobs
             .Include(x => x.Project)
-            .Include(x => x.PrimarySourceAsset)
-            .Include(x => x.Scenes.OrderBy(s => s.SceneNo))
+            .Include(x => x.Scenes)
             .Include(x => x.Assets)
             .Include(x => x.PublishTasks)
-            .Include(x => x.ErrorLogs.OrderByDescending(e => e.ErrorLogId))
+            .Include(x => x.ErrorLogs)
+            .Include(x => x.PrimarySourceAsset)
             .FirstOrDefaultAsync(x => x.VideoJobId == videoJobId, cancellationToken);
     }
 
     public async Task QueueJobAsync(int videoJobId, CancellationToken cancellationToken = default)
     {
         var job = await _db.VideoJobs.FirstAsync(x => x.VideoJobId == videoJobId, cancellationToken);
+
         job.Status = VideoJobStatus.Queued;
-        job.CurrentStep = VideoPipelineStep.ScriptGenerating;
+        job.CurrentStep = VideoPipelineStep.Queued;
+        job.ErrorMessage = null;
+        job.NextRetryDate = null;
         job.UpdatedDate = DateTime.UtcNow;
+
         await _db.SaveChangesAsync(cancellationToken);
     }
 
     public async Task RetryJobAsync(int videoJobId, CancellationToken cancellationToken = default)
     {
         var job = await _db.VideoJobs.FirstAsync(x => x.VideoJobId == videoJobId, cancellationToken);
+
         job.Status = VideoJobStatus.Queued;
-        job.CurrentStep = VideoPipelineStep.ScriptGenerating;
+        job.CurrentStep = VideoPipelineStep.Queued;
         job.ErrorMessage = null;
-        job.RetryCount += 1;
+        job.NextRetryDate = null;
+        job.WorkerLockId = null;
+        job.LockedBy = null;
+        job.LockExpiresAt = null;
+        job.LastHeartbeatAt = null;
         job.UpdatedDate = DateTime.UtcNow;
+
         await _db.SaveChangesAsync(cancellationToken);
     }
 
@@ -161,5 +119,53 @@ public class VideoJobService : IVideoJobService
                 x => x.Status == VideoJobStatus.Queued || x.Status == VideoJobStatus.Processing,
                 cancellationToken)
         };
+    }
+
+    public async Task AttachUploadedSourceImageAsync(
+        int videoJobId,
+        string fileName,
+        string contentType,
+        byte[] fileBytes,
+        CancellationToken cancellationToken = default)
+    {
+        var job = await _db.VideoJobs.FirstAsync(x => x.VideoJobId == videoJobId, cancellationToken);
+
+        var safeFileName = string.IsNullOrWhiteSpace(fileName) ? "source.jpg" : fileName;
+        var ext = Path.GetExtension(safeFileName);
+        if (string.IsNullOrWhiteSpace(ext))
+        {
+            ext = ".jpg";
+            safeFileName += ext;
+        }
+
+        var folder = Path.Combine(AppContext.BaseDirectory, "storage", "projects", job.ProjectId.ToString(), "jobs", job.VideoJobId.ToString(), "source");
+        Directory.CreateDirectory(folder);
+
+        var fullPath = Path.Combine(folder, safeFileName);
+        await File.WriteAllBytesAsync(fullPath, fileBytes, cancellationToken);
+
+        var asset = new Asset
+        {
+            VideoJobId = job.VideoJobId,
+            AssetType = AssetType.SourceImage,
+            ProviderName = "Upload",
+            FileName = safeFileName,
+            BlobPath = $"projects/{job.ProjectId}/jobs/{job.VideoJobId}/source/{safeFileName}",
+            PublicUrl = fullPath,
+            MimeType = contentType,
+            FileSize = fileBytes.LongLength,
+            Status = VideoJobStatus.Completed,
+            CreatedDate = DateTime.UtcNow,
+            UpdatedDate = DateTime.UtcNow
+        };
+
+        _db.Assets.Add(asset);
+        await _db.SaveChangesAsync(cancellationToken);
+
+        job.PrimarySourceAssetId = asset.AssetId;
+        job.InputMode = InputModeType.UploadedSingleImage;
+        job.UpdatedDate = DateTime.UtcNow;
+
+        await _db.SaveChangesAsync(cancellationToken);
     }
 }

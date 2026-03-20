@@ -14,7 +14,7 @@ public class HomeController : Controller
 
     public async Task<IActionResult> Index(CancellationToken cancellationToken)
     {
-        var summary = await _videoJobService.GetDashboardSummaryAsync(cancellationToken);
-        return View(summary);
+        var model = await _videoJobService.GetDashboardSummaryAsync(cancellationToken);
+        return View(model);
     }
 }

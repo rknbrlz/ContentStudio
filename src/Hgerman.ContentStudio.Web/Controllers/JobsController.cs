@@ -20,23 +20,27 @@ public class JobsController : Controller
     [HttpGet("run")]
     public async Task<IActionResult> Run(CancellationToken cancellationToken)
     {
+        var recovered = await _jobProcessor.RecoverTimedOutJobsAsync(cancellationToken);
+        var processed = await _jobProcessor.ProcessNextPendingJobAsync(cancellationToken);
+
         var lastJobs = await _db.VideoJobs
             .OrderByDescending(x => x.VideoJobId)
-            .Take(5)
+            .Take(10)
             .Select(x => new
             {
                 x.VideoJobId,
+                x.JobNo,
                 x.Title,
-                x.Status,
-                x.CurrentStep,
-                x.CreatedDate
+                Status = x.Status.ToString(),
+                CurrentStep = x.CurrentStep.ToString(),
+                x.ProgressPercent,
+                x.UpdatedDate
             })
             .ToListAsync(cancellationToken);
 
-        var processed = await _jobProcessor.ProcessNextPendingJobAsync(cancellationToken);
-
         return Json(new
         {
+            recovered,
             processed,
             jobs = lastJobs
         });

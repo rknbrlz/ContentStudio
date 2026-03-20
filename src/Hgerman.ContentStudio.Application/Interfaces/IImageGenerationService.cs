@@ -4,5 +4,8 @@ namespace Hgerman.ContentStudio.Application.Interfaces;
 
 public interface IImageGenerationService
 {
-    Task<Asset> GenerateImageAsync(VideoJob job, VideoScene scene, CancellationToken cancellationToken = default);
+    Task<Asset> GenerateImageAsync(
+        VideoJob job,
+        VideoScene scene,
+        CancellationToken cancellationToken = default);
 }

@@ -43,6 +43,7 @@ public class CreateVideoJobViewModel
     public bool SubtitleEnabled { get; set; } = true;
     public bool ThumbnailEnabled { get; set; } = true;
 
+    [Required]
     public InputModeType InputMode { get; set; } = InputModeType.AiOnly;
 
     public IFormFile? SourceImage { get; set; }

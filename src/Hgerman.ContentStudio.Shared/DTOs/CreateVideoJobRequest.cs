@@ -17,6 +17,5 @@ public class CreateVideoJobRequest
     public string? VoiceName { get; set; }
     public bool SubtitleEnabled { get; set; } = true;
     public bool ThumbnailEnabled { get; set; } = true;
-
     public InputModeType InputMode { get; set; } = InputModeType.AiOnly;
 }

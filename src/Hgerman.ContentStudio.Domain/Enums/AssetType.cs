@@ -2,12 +2,13 @@ namespace Hgerman.ContentStudio.Domain.Enums;
 
 public enum AssetType
 {
-    ScriptText = 1,
-    SceneImage = 2,
-    VoiceAudio = 3,
-    SubtitleSrt = 4,
-    Thumbnail = 5,
-    FinalVideo = 6,
-    TempClip = 7,
-    SourceUploadImage = 8
+    Unknown = 0,
+    SourceImage = 1,
+    ScriptText = 2,
+    SceneImage = 3,
+    VoiceAudio = 4,
+    SubtitleSrt = 5,
+    SubtitleFile = 6,
+    FinalVideo = 7,
+    Thumbnail = 8
 }
