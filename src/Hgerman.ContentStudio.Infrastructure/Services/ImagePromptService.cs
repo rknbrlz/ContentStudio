@@ -3,7 +3,7 @@ using Hgerman.ContentStudio.Domain.Entities;
 
 namespace Hgerman.ContentStudio.Infrastructure.Services;
 
-public class ImagePromptService : IImagePromptService
+public sealed class ImagePromptService : IImagePromptService
 {
     public Task<string> GenerateScenePromptAsync(
         VideoJob job,
@@ -11,10 +11,20 @@ public class ImagePromptService : IImagePromptService
         CancellationToken cancellationToken = default)
     {
         var prompt =
-            $"Create a cinematic vertical 9:16 scene for a short video. " +
+            $"Create a HIGH-IMPACT viral short video scene. " +
+            $"Vertical 9:16. " +
+            $"Ultra realistic. " +
+            $"Strong contrast. " +
+            $"Dramatic lighting. " +
+            $"Clean composition. " +
+            $"Center focus. " +
+            $"High detail. " +
+            $"Dynamic composition. " +
+            $"Attention grabbing. " +
+            $"Add motion feeling even in still image. " +
             $"Topic: {job.Topic ?? job.Title}. " +
             $"Scene text: {scene.SceneText}. " +
-            $"Style: realistic, high detail, dramatic lighting, clean composition, social media ready.";
+            $"Style: TikTok / YouTube Shorts viral style.";
 
         return Task.FromResult(prompt);
     }

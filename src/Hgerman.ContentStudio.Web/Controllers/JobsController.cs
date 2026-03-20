@@ -9,11 +9,16 @@ namespace Hgerman.ContentStudio.Web.Controllers;
 public class JobsController : Controller
 {
     private readonly IJobProcessor _jobProcessor;
+    private readonly IPublishService _publishService;
     private readonly ContentStudioDbContext _db;
 
-    public JobsController(IJobProcessor jobProcessor, ContentStudioDbContext db)
+    public JobsController(
+        IJobProcessor jobProcessor,
+        IPublishService publishService,
+        ContentStudioDbContext db)
     {
         _jobProcessor = jobProcessor;
+        _publishService = publishService;
         _db = db;
     }
 
@@ -44,5 +49,30 @@ public class JobsController : Controller
             processed,
             jobs = lastJobs
         });
+    }
+
+    [HttpPost("{id:int}/publish-youtube")]
+    public async Task<IActionResult> PublishToYouTube(int id, CancellationToken cancellationToken)
+    {
+        try
+        {
+            var url = await _publishService.PublishToYouTubeAsync(id, cancellationToken);
+
+            return Json(new
+            {
+                success = true,
+                videoJobId = id,
+                youtubeUrl = url
+            });
+        }
+        catch (Exception ex)
+        {
+            return BadRequest(new
+            {
+                success = false,
+                videoJobId = id,
+                error = ex.Message
+            });
+        }
     }
 }

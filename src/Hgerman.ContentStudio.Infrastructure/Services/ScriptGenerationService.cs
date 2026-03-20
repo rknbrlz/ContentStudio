@@ -1,69 +1,78 @@
-using Hgerman.ContentStudio.Application.Interfaces;
+﻿using Hgerman.ContentStudio.Application.Interfaces;
 using Hgerman.ContentStudio.Domain.Entities;
 using Microsoft.Extensions.Logging;
 
 namespace Hgerman.ContentStudio.Infrastructure.Services;
 
-public class ScriptGenerationService : IScriptGenerationService
+public sealed class ScriptGenerationService : IScriptGenerationService
 {
-    private readonly OpenAiApiClient _openAiApiClient;
+    private readonly IHookGenerationService _hookGenerationService;
     private readonly ILogger<ScriptGenerationService> _logger;
 
     public ScriptGenerationService(
-        OpenAiApiClient openAiApiClient,
+        IHookGenerationService hookGenerationService,
         ILogger<ScriptGenerationService> logger)
     {
-        _openAiApiClient = openAiApiClient;
+        _hookGenerationService = hookGenerationService;
         _logger = logger;
     }
 
     public async Task<string> GenerateScriptAsync(VideoJob job, CancellationToken cancellationToken = default)
     {
-        var topic = string.IsNullOrWhiteSpace(job.Topic) ? job.Title : job.Topic;
-        if (!_openAiApiClient.IsConfigured)
-        {
-            _logger.LogWarning("OpenAI key not configured. Returning fallback script for VideoJobId {VideoJobId}", job.VideoJobId);
-            return BuildFallbackScript(topic!);
-        }
+        cancellationToken.ThrowIfCancellationRequested();
 
-        var systemPrompt = """
-You are a short-form video scriptwriter.
-Return only the final narration text.
-Requirements:
-- Write for vertical short-form video.
-- Use short, punchy lines.
-- Include a strong first 3-second hook.
-- Keep it natural for voiceover.
-- No markdown.
-- No scene labels.
-- No bullet points.
-- End with a soft CTA.
-""";
+        var topic = string.IsNullOrWhiteSpace(job.Topic)
+            ? job.Title
+            : job.Topic;
 
-        var userPrompt = $"""
-Create a {job.DurationTargetSec}-second script in language '{job.LanguageCode}'.
-Title: {job.Title}
-Topic: {topic}
-Tone: {job.ToneType}
-Platform: {job.PlatformType}
-Extra instructions: {job.SourcePrompt ?? "none"}
-Keep total narration concise and emotionally engaging.
-""";
+        var hook = await _hookGenerationService.GenerateHookAsync(
+            topic ?? "Motivation",
+            job.LanguageCode ?? "en",
+            cancellationToken);
 
-        return await _openAiApiClient.GenerateStructuredTextAsync(systemPrompt, userPrompt, cancellationToken);
+        var lines = BuildLines(job.LanguageCode ?? "en", topic ?? "Motivation");
+
+        var scriptLines = new List<string> { hook };
+        scriptLines.AddRange(lines);
+
+        var script = string.Join(Environment.NewLine, scriptLines);
+
+        _logger.LogInformation("Script generated for VideoJobId {VideoJobId}", job.VideoJobId);
+
+        return script;
     }
 
-    private static string BuildFallbackScript(string topic)
+    private static IReadOnlyList<string> BuildLines(string languageCode, string topic)
     {
-        return $"""
-{topic} is not built in a single day.
-Most people wait to feel ready.
-But readiness comes after the first step.
-Every small action proves to your mind that change is possible.
-Start before you feel perfect.
-Stay consistent when nobody is watching.
-A year from now, you will thank yourself for beginning today.
-Follow for more.
-""";
+        return languageCode.ToLowerInvariant() switch
+        {
+            "pl" => new[]
+            {
+                $"Każda porażka czegoś cię uczy.",
+                "To, co dziś boli, jutro da ci siłę.",
+                "Dyscyplina tworzy mistrza.",
+                "Nie zatrzymuj się, nawet gdy jest ciężko.",
+                "Sukces przychodzi do tych, którzy wytrwają.",
+                "Twój czas zaczyna się teraz."
+            },
+            "tr" => new[]
+            {
+                "Her düşüş sana bir şey öğretir.",
+                "Bugün canını yakan şey yarın seni güçlendirir.",
+                "Disiplin kazananları oluşturur.",
+                "Zor olsa da yürümeye devam et.",
+                "Başarı vazgeçmeyenlere gelir.",
+                "Senin zamanın şimdi başlıyor."
+            },
+            _ => new[]
+            {
+                "Every fall teaches you something.",
+                "What hurts today can make you stronger tomorrow.",
+                "Discipline builds winners.",
+                "Keep moving even when it feels hard.",
+                "Success comes to those who stay.",
+                "Your time starts now."
+            }
+        };
     }
 }

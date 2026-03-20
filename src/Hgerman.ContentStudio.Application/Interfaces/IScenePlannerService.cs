@@ -4,7 +4,7 @@ namespace Hgerman.ContentStudio.Application.Interfaces;
 
 public interface IScenePlannerService
 {
-    Task<List<VideoScene>> BuildScenesAsync(
+    Task<IReadOnlyList<VideoScene>> BuildScenesAsync(
         VideoJob job,
         string script,
         CancellationToken cancellationToken = default);

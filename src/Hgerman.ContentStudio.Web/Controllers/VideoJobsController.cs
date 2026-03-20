@@ -1,123 +1,46 @@
 using Hgerman.ContentStudio.Application.Interfaces;
 using Hgerman.ContentStudio.Domain.Enums;
-using Hgerman.ContentStudio.Shared.DTOs;
-using Hgerman.ContentStudio.Web.Models;
+using Hgerman.ContentStudio.Infrastructure.Data;
 using Microsoft.AspNetCore.Mvc;
-using Microsoft.AspNetCore.Mvc.Rendering;
+using Microsoft.EntityFrameworkCore;
 
 namespace Hgerman.ContentStudio.Web.Controllers;
 
 public class VideoJobsController : Controller
 {
-    private readonly IVideoJobService _videoJobService;
+    private readonly ContentStudioDbContext _db;
+    private readonly IJobProcessor _jobProcessor;
+    private readonly IPublishService _publishService;
 
-    public VideoJobsController(IVideoJobService videoJobService)
+    public VideoJobsController(
+        ContentStudioDbContext db,
+        IJobProcessor jobProcessor,
+        IPublishService publishService)
     {
-        _videoJobService = videoJobService;
+        _db = db;
+        _jobProcessor = jobProcessor;
+        _publishService = publishService;
     }
 
     public async Task<IActionResult> Index(CancellationToken cancellationToken)
     {
-        var jobs = await _videoJobService.GetJobListAsync(cancellationToken);
+        var jobs = await _db.VideoJobs
+            .OrderByDescending(x => x.VideoJobId)
+            .ToListAsync(cancellationToken);
+
         return View(jobs);
-    }
-
-    [HttpGet]
-    public IActionResult Create()
-    {
-        PopulateLookups();
-
-        return View(new CreateVideoJobViewModel
-        {
-            ProjectId = 1,
-            DurationTargetSec = 45,
-            SubtitleEnabled = true,
-            ThumbnailEnabled = true,
-            LanguageCode = "en",
-            InputMode = InputModeType.AiOnly
-        });
-    }
-
-    [HttpPost]
-    [ValidateAntiForgeryToken]
-    [RequestFormLimits(MultipartBodyLengthLimit = 15 * 1024 * 1024)]
-    [RequestSizeLimit(15 * 1024 * 1024)]
-    public async Task<IActionResult> Create(CreateVideoJobViewModel model, CancellationToken cancellationToken)
-    {
-        if (model.InputMode == InputModeType.UploadedSingleImage && model.SourceImage == null)
-        {
-            ModelState.AddModelError(nameof(model.SourceImage), "Please upload a source image.");
-        }
-
-        if (model.SourceImage != null)
-        {
-            var allowed = new[] { ".jpg", ".jpeg", ".png", ".webp" };
-            var ext = Path.GetExtension(model.SourceImage.FileName).ToLowerInvariant();
-
-            if (!allowed.Contains(ext))
-            {
-                ModelState.AddModelError(nameof(model.SourceImage), "Only .jpg, .jpeg, .png, .webp files are allowed.");
-            }
-
-            if (model.SourceImage.Length <= 0)
-            {
-                ModelState.AddModelError(nameof(model.SourceImage), "Uploaded file is empty.");
-            }
-
-            if (model.SourceImage.Length > 15 * 1024 * 1024)
-            {
-                ModelState.AddModelError(nameof(model.SourceImage), "Max file size is 15 MB.");
-            }
-        }
-
-        if (!ModelState.IsValid)
-        {
-            PopulateLookups();
-            return View(model);
-        }
-
-        var request = new CreateVideoJobRequest
-        {
-            ProjectId = model.ProjectId,
-            Title = model.Title,
-            Topic = model.Topic,
-            SourcePrompt = model.SourcePrompt,
-            LanguageCode = model.LanguageCode,
-            PlatformType = model.PlatformType,
-            ToneType = model.ToneType,
-            DurationTargetSec = model.DurationTargetSec,
-            AspectRatio = model.AspectRatio,
-            VoiceProvider = model.VoiceProvider,
-            VoiceName = model.VoiceName,
-            SubtitleEnabled = model.SubtitleEnabled,
-            ThumbnailEnabled = model.ThumbnailEnabled,
-            InputMode = model.InputMode
-        };
-
-        var jobId = await _videoJobService.CreateJobAsync(request, cancellationToken);
-
-        if (model.SourceImage != null)
-        {
-            await using var ms = new MemoryStream();
-            await model.SourceImage.CopyToAsync(ms, cancellationToken);
-
-            await _videoJobService.AttachUploadedSourceImageAsync(
-                jobId,
-                model.SourceImage.FileName,
-                model.SourceImage.ContentType ?? "image/jpeg",
-                ms.ToArray(),
-                cancellationToken);
-        }
-
-        await _videoJobService.QueueJobAsync(jobId, cancellationToken);
-
-        return RedirectToAction(nameof(Details), new { id = jobId });
     }
 
     public async Task<IActionResult> Details(int id, CancellationToken cancellationToken)
     {
-        var job = await _videoJobService.GetJobAsync(id, cancellationToken);
-        if (job is null)
+        var job = await _db.VideoJobs
+            .Include(x => x.PrimarySourceAsset)
+            .Include(x => x.Scenes)
+            .Include(x => x.Assets)
+            .Include(x => x.ErrorLogs)
+            .FirstOrDefaultAsync(x => x.VideoJobId == id, cancellationToken);
+
+        if (job == null)
         {
             return NotFound();
         }
@@ -129,26 +52,124 @@ public class VideoJobsController : Controller
     [ValidateAntiForgeryToken]
     public async Task<IActionResult> Retry(int id, CancellationToken cancellationToken)
     {
-        await _videoJobService.RetryJobAsync(id, cancellationToken);
+        var job = await _db.VideoJobs.FirstOrDefaultAsync(x => x.VideoJobId == id, cancellationToken);
+        if (job == null)
+        {
+            return NotFound();
+        }
+
+        job.Status = VideoJobStatus.Queued;
+        job.CurrentStep = VideoPipelineStep.Queued;
+        job.ProgressPercent = 0;
+        job.ErrorMessage = null;
+        job.CompletedDate = null;
+        job.UpdatedDate = DateTime.UtcNow;
+
+        await _db.SaveChangesAsync(cancellationToken);
+
         return RedirectToAction(nameof(Details), new { id });
     }
 
-    private void PopulateLookups()
+    [HttpPost]
+    public async Task<IActionResult> PublishToYouTube(int id, CancellationToken cancellationToken)
     {
-        ViewBag.PlatformTypes = Enum.GetValues<PlatformType>()
-            .Select(x => new SelectListItem(x.ToString(), x.ToString()))
-            .ToList();
+        try
+        {
+            var url = await _publishService.PublishToYouTubeAsync(id, cancellationToken);
 
-        ViewBag.ToneTypes = Enum.GetValues<ToneType>()
-            .Select(x => new SelectListItem(x.ToString(), x.ToString()))
-            .ToList();
+            return Json(new
+            {
+                success = true,
+                videoJobId = id,
+                youtubeUrl = url
+            });
+        }
+        catch (Exception ex)
+        {
+            return BadRequest(new
+            {
+                success = false,
+                videoJobId = id,
+                error = ex.Message
+            });
+        }
+    }
 
-        ViewBag.AspectRatios = Enum.GetValues<AspectRatioType>()
-            .Select(x => new SelectListItem(x.ToString(), x.ToString()))
-            .ToList();
+    [HttpGet]
+    public async Task<IActionResult> GetStatus(int id, CancellationToken cancellationToken)
+    {
+        var job = await _db.VideoJobs
+            .Include(x => x.Scenes)
+            .Include(x => x.Assets)
+            .Include(x => x.ErrorLogs)
+            .FirstOrDefaultAsync(x => x.VideoJobId == id, cancellationToken);
 
-        ViewBag.InputModes = Enum.GetValues<InputModeType>()
-            .Select(x => new SelectListItem(x.ToString(), ((int)x).ToString()))
-            .ToList();
+        if (job == null)
+        {
+            return NotFound();
+        }
+
+        var finalVideoAsset = job.Assets
+            .Where(x => x.AssetType == AssetType.FinalVideo)
+            .OrderByDescending(x => x.AssetId)
+            .FirstOrDefault();
+
+        return Json(new
+        {
+            jobId = job.VideoJobId,
+            status = job.Status.ToString(),
+            step = job.CurrentStep.ToString(),
+            progress = job.ProgressPercent,
+            updated = job.UpdatedDate,
+            errorMessage = job.ErrorMessage,
+            completedDate = job.CompletedDate,
+
+            finalVideo = finalVideoAsset == null
+                ? null
+                : new
+                {
+                    assetType = finalVideoAsset.AssetType.ToString(),
+                    fileName = finalVideoAsset.FileName,
+                    publicUrl = finalVideoAsset.PublicUrl,
+                    status = finalVideoAsset.Status.ToString(),
+                    fileSize = finalVideoAsset.FileSize
+                },
+
+            scenes = job.Scenes
+                .OrderBy(x => x.SceneNo)
+                .Select(x => new
+                {
+                    sceneNo = x.SceneNo,
+                    sceneText = x.SceneText,
+                    scenePrompt = x.ScenePrompt,
+                    durationSecond = x.DurationSecond
+                })
+                .ToList(),
+
+            assets = job.Assets
+                .OrderBy(x => x.AssetType)
+                .ThenBy(x => x.AssetId)
+                .Select(x => new
+                {
+                    assetType = x.AssetType.ToString(),
+                    fileName = x.FileName,
+                    blobPath = x.BlobPath,
+                    publicUrl = x.PublicUrl,
+                    status = x.Status.ToString(),
+                    fileSize = x.FileSize
+                })
+                .ToList(),
+
+            errors = job.ErrorLogs
+                .OrderByDescending(x => x.ErrorLogId)
+                .Select(x => new
+                {
+                    stepName = x.StepName,
+                    errorType = x.ErrorType,
+                    errorMessage = x.ErrorMessage,
+                    createdDate = x.CreatedDate
+                })
+                .ToList()
+        });
     }
 }

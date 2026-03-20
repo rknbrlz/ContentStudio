@@ -2,13 +2,13 @@ namespace Hgerman.ContentStudio.Application.Interfaces;
 
 public interface IStorageService
 {
-    Task<string?> UploadTextAsync(
+    Task<string> UploadTextAsync(
         string blobPath,
         string content,
         string contentType,
         CancellationToken cancellationToken = default);
 
-    Task<string?> UploadBytesAsync(
+    Task<string> UploadBytesAsync(
         string blobPath,
         byte[] content,
         string contentType,

@@ -5,4 +5,6 @@ namespace Hgerman.ContentStudio.Application.Interfaces;
 public interface IPublishService
 {
     Task<PublishTask> CreateDraftAsync(VideoJob job, CancellationToken cancellationToken = default);
+
+    Task<string> PublishToYouTubeAsync(int videoJobId, CancellationToken cancellationToken = default);
 }
