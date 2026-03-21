@@ -16,6 +16,7 @@ public class ContentStudioDbContext : DbContext
     public DbSet<Asset> Assets => Set<Asset>();
     public DbSet<PublishTask> PublishTasks => Set<PublishTask>();
     public DbSet<ErrorLog> ErrorLogs => Set<ErrorLog>();
+    public DbSet<AutomationProfile> AutomationProfiles => Set<AutomationProfile>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -148,6 +149,24 @@ public class ContentStudioDbContext : DbContext
                 .WithMany(x => x.ErrorLogs)
                 .HasForeignKey(x => x.VideoJobId)
                 .OnDelete(DeleteBehavior.Cascade);
+        });
+
+        modelBuilder.Entity<AutomationProfile>(entity =>
+        {
+            entity.ToTable("CS_AutomationProfile");
+            entity.HasKey(x => x.AutomationProfileId);
+
+            entity.Property(x => x.Name).HasMaxLength(200).IsRequired();
+            entity.Property(x => x.LanguageCode).HasMaxLength(10).IsRequired();
+            entity.Property(x => x.PreferredHoursCsv).HasMaxLength(100).IsRequired();
+            entity.Property(x => x.TopicPrompt).IsRequired();
+            entity.Property(x => x.HookTemplate).HasMaxLength(500);
+            entity.Property(x => x.ViralPatternTemplate).HasMaxLength(1000);
+
+            entity.HasOne(x => x.Project)
+                .WithMany()
+                .HasForeignKey(x => x.ProjectId)
+                .OnDelete(DeleteBehavior.Restrict);
         });
     }
 }

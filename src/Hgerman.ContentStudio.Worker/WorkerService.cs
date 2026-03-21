@@ -29,7 +29,15 @@ public sealed class WorkerService : BackgroundService
             try
             {
                 using var scope = _serviceProvider.CreateScope();
+
+                var automationService = scope.ServiceProvider.GetRequiredService<IAutomationService>();
                 var processor = scope.ServiceProvider.GetRequiredService<IJobProcessor>();
+
+                var autoCreatedCount = await automationService.RunScheduledAutomationsAsync(stoppingToken);
+                if (autoCreatedCount > 0)
+                {
+                    _logger.LogInformation("Created {AutoCreatedCount} automated video jobs.", autoCreatedCount);
+                }
 
                 var recoveredCount = await processor.RecoverTimedOutJobsAsync(stoppingToken);
                 if (recoveredCount > 0)
@@ -38,6 +46,12 @@ public sealed class WorkerService : BackgroundService
                 }
 
                 var processed = await processor.ProcessNextPendingJobAsync(stoppingToken);
+
+                var autoPublishedCount = await automationService.PublishCompletedAutoJobsAsync(stoppingToken);
+                if (autoPublishedCount > 0)
+                {
+                    _logger.LogInformation("Published {AutoPublishedCount} completed automated jobs.", autoPublishedCount);
+                }
 
                 await Task.Delay(
                     processed ? TimeSpan.FromSeconds(_options.BusyDelaySec)
