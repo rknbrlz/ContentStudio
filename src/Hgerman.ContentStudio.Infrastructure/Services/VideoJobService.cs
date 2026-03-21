@@ -36,14 +36,17 @@ public class VideoJobService : IVideoJobService
             SubtitleEnabled = request.SubtitleEnabled,
             ThumbnailEnabled = request.ThumbnailEnabled,
             InputMode = request.InputMode,
-            Status = VideoJobStatus.Draft,
-            CurrentStep = VideoPipelineStep.Draft,
-            CreatedDate = DateTime.UtcNow,
-            UpdatedDate = DateTime.UtcNow
+            Status = VideoJobStatus.Queued,
+            CurrentStep = VideoPipelineStep.Queued,
+            ProgressPercent = 0,
+            OverlayEnabled = true,
+            MotionMode = "cinematic",
+            RenderProfile = "cinematic"
         };
 
         _db.VideoJobs.Add(job);
         await _db.SaveChangesAsync(cancellationToken);
+
         return job.VideoJobId;
     }
 
@@ -57,11 +60,12 @@ public class VideoJobService : IVideoJobService
                 JobNo = x.JobNo,
                 Title = x.Title,
                 LanguageCode = x.LanguageCode,
-                PlatformType = x.PlatformType,
-                Status = x.Status,
+                PlatformType = x.PlatformType.ToString(),
+                Status = x.Status.ToString(),
                 CurrentStep = x.CurrentStep.ToString(),
                 CreatedDate = x.CreatedDate,
-                UpdatedDate = x.UpdatedDate
+                UpdatedDate = x.UpdatedDate,
+                IsPublished = x.IsPublished
             })
             .ToListAsync(cancellationToken);
     }
@@ -80,12 +84,24 @@ public class VideoJobService : IVideoJobService
 
     public async Task QueueJobAsync(int videoJobId, CancellationToken cancellationToken = default)
     {
-        var job = await _db.VideoJobs.FirstAsync(x => x.VideoJobId == videoJobId, cancellationToken);
+        var job = await _db.VideoJobs
+            .FirstOrDefaultAsync(x => x.VideoJobId == videoJobId, cancellationToken);
+
+        if (job == null)
+            throw new InvalidOperationException($"Video job not found. VideoJobId={videoJobId}");
 
         job.Status = VideoJobStatus.Queued;
         job.CurrentStep = VideoPipelineStep.Queued;
         job.ErrorMessage = null;
+        job.ProgressPercent = 0;
+        job.StartedDate = null;
+        job.CompletedDate = null;
+        job.LastAttemptDate = null;
         job.NextRetryDate = null;
+        job.LockedBy = null;
+        job.WorkerLockId = null;
+        job.LockExpiresAt = null;
+        job.LastHeartbeatAt = null;
         job.UpdatedDate = DateTime.UtcNow;
 
         await _db.SaveChangesAsync(cancellationToken);
@@ -93,14 +109,23 @@ public class VideoJobService : IVideoJobService
 
     public async Task RetryJobAsync(int videoJobId, CancellationToken cancellationToken = default)
     {
-        var job = await _db.VideoJobs.FirstAsync(x => x.VideoJobId == videoJobId, cancellationToken);
+        var job = await _db.VideoJobs
+            .FirstOrDefaultAsync(x => x.VideoJobId == videoJobId, cancellationToken);
 
+        if (job == null)
+            throw new InvalidOperationException($"Video job not found. VideoJobId={videoJobId}");
+
+        job.RetryCount += 1;
         job.Status = VideoJobStatus.Queued;
         job.CurrentStep = VideoPipelineStep.Queued;
         job.ErrorMessage = null;
+        job.ProgressPercent = 0;
+        job.StartedDate = null;
+        job.CompletedDate = null;
+        job.LastAttemptDate = null;
         job.NextRetryDate = null;
-        job.WorkerLockId = null;
         job.LockedBy = null;
+        job.WorkerLockId = null;
         job.LockExpiresAt = null;
         job.LastHeartbeatAt = null;
         job.UpdatedDate = DateTime.UtcNow;
@@ -110,15 +135,23 @@ public class VideoJobService : IVideoJobService
 
     public async Task<DashboardSummaryDto> GetDashboardSummaryAsync(CancellationToken cancellationToken = default)
     {
-        return new DashboardSummaryDto
-        {
-            TotalJobs = await _db.VideoJobs.CountAsync(cancellationToken),
-            CompletedJobs = await _db.VideoJobs.CountAsync(x => x.Status == VideoJobStatus.Completed, cancellationToken),
-            FailedJobs = await _db.VideoJobs.CountAsync(x => x.Status == VideoJobStatus.Failed, cancellationToken),
-            QueuedJobs = await _db.VideoJobs.CountAsync(
-                x => x.Status == VideoJobStatus.Queued || x.Status == VideoJobStatus.Processing,
-                cancellationToken)
-        };
+        var jobs = _db.VideoJobs.AsQueryable();
+
+        var totalJobs = await jobs.CountAsync(cancellationToken);
+        var queuedJobs = await jobs.CountAsync(x => x.Status == VideoJobStatus.Queued, cancellationToken);
+        var processingJobs = await jobs.CountAsync(x => x.Status == VideoJobStatus.Processing, cancellationToken);
+        var completedJobs = await jobs.CountAsync(x => x.Status == VideoJobStatus.Completed, cancellationToken);
+        var failedJobs = await jobs.CountAsync(x => x.Status == VideoJobStatus.Failed, cancellationToken);
+
+        var dto = new DashboardSummaryDto();
+
+        SetPropertyIfExists(dto, "TotalJobs", totalJobs);
+        SetPropertyIfExists(dto, "QueuedJobs", queuedJobs);
+        SetPropertyIfExists(dto, "ProcessingJobs", processingJobs);
+        SetPropertyIfExists(dto, "CompletedJobs", completedJobs);
+        SetPropertyIfExists(dto, "FailedJobs", failedJobs);
+
+        return dto;
     }
 
     public async Task AttachUploadedSourceImageAsync(
@@ -128,44 +161,47 @@ public class VideoJobService : IVideoJobService
         byte[] fileBytes,
         CancellationToken cancellationToken = default)
     {
-        var job = await _db.VideoJobs.FirstAsync(x => x.VideoJobId == videoJobId, cancellationToken);
+        var job = await _db.VideoJobs
+            .FirstOrDefaultAsync(x => x.VideoJobId == videoJobId, cancellationToken);
 
-        var safeFileName = string.IsNullOrWhiteSpace(fileName) ? "source.jpg" : fileName;
-        var ext = Path.GetExtension(safeFileName);
-        if (string.IsNullOrWhiteSpace(ext))
-        {
-            ext = ".jpg";
-            safeFileName += ext;
-        }
+        if (job == null)
+            throw new InvalidOperationException($"Video job not found. VideoJobId={videoJobId}");
 
-        var folder = Path.Combine(AppContext.BaseDirectory, "storage", "projects", job.ProjectId.ToString(), "jobs", job.VideoJobId.ToString(), "source");
-        Directory.CreateDirectory(folder);
+        var uploadsRoot = Path.Combine(AppContext.BaseDirectory, "storage", "uploads", "source-images");
+        Directory.CreateDirectory(uploadsRoot);
 
-        var fullPath = Path.Combine(folder, safeFileName);
+        var extension = Path.GetExtension(fileName);
+        var safeFileName = $"{Guid.NewGuid():N}{extension}";
+        var fullPath = Path.Combine(uploadsRoot, safeFileName);
+
         await File.WriteAllBytesAsync(fullPath, fileBytes, cancellationToken);
 
         var asset = new Asset
         {
+            ProjectId = job.ProjectId,
             VideoJobId = job.VideoJobId,
-            AssetType = AssetType.SourceImage,
-            ProviderName = "Upload",
-            FileName = safeFileName,
-            BlobPath = $"projects/{job.ProjectId}/jobs/{job.VideoJobId}/source/{safeFileName}",
-            PublicUrl = fullPath,
-            MimeType = contentType,
-            FileSize = fileBytes.LongLength,
-            Status = VideoJobStatus.Completed,
-            CreatedDate = DateTime.UtcNow,
-            UpdatedDate = DateTime.UtcNow
+            ProviderName = "local",
+            FileName = fileName,
+            BlobPath = fullPath,
+            PublicUrl = null,
+            MimeType = contentType
         };
 
         _db.Assets.Add(asset);
         await _db.SaveChangesAsync(cancellationToken);
 
         job.PrimarySourceAssetId = asset.AssetId;
-        job.InputMode = InputModeType.UploadedSingleImage;
         job.UpdatedDate = DateTime.UtcNow;
 
         await _db.SaveChangesAsync(cancellationToken);
+    }
+
+    private static void SetPropertyIfExists<T>(object target, string propertyName, T value)
+    {
+        var property = target.GetType().GetProperty(propertyName);
+        if (property == null || !property.CanWrite)
+            return;
+
+        property.SetValue(target, value);
     }
 }

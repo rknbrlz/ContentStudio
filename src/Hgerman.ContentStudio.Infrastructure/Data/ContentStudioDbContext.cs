@@ -48,6 +48,7 @@ public class ContentStudioDbContext : DbContext
             entity.Property(x => x.LockedBy).HasMaxLength(100);
             entity.Property(x => x.MotionMode).HasMaxLength(30);
             entity.Property(x => x.RenderProfile).HasMaxLength(30);
+            entity.Property(x => x.PublishedUrl).HasMaxLength(1000);
 
             entity.HasOne(x => x.Project)
                 .WithMany(x => x.VideoJobs)

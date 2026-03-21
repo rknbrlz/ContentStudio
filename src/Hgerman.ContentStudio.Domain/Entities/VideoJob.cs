@@ -52,6 +52,10 @@ public class VideoJob : BaseEntity
     public string? MotionMode { get; set; } = "cinematic";
     public string? RenderProfile { get; set; } = "cinematic";
 
+    public bool IsPublished { get; set; }
+    public DateTime? PublishedDate { get; set; }
+    public string? PublishedUrl { get; set; }
+
     public Project? Project { get; set; }
     public Asset? PrimarySourceAsset { get; set; }
 

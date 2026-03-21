@@ -1,0 +1,108 @@
+﻿@model Hgerman.ContentStudio.Web.Models.AutomationProfilesIndexViewModel
+
+@{
+    ViewData["Title"] = "Automation Profiles";
+}
+
+<div style="padding:24px;">
+    <div style="display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap;margin-bottom:20px;">
+        <div>
+            <h1 style="margin:0 0 6px 0;">Automation Profiles</h1>
+            <div style="color:#6b7280;">Manage multi-channel auto video generation</div>
+        </div>
+
+        <form asp-action="RunAllNow" method="post">
+            @Html.AntiForgeryToken()
+            <button type="submit" class="btn btn-success">⚡ Run All Active Now</button>
+        </form>
+    </div>
+
+    @if (TempData["SuccessMessage"] is string successMessage && !string.IsNullOrWhiteSpace(successMessage))
+    {
+        <div style="margin-bottom:14px;padding:12px 14px;border-radius:10px;background:#ecfdf5;color:#166534;border:1px solid #bbf7d0;">
+            @successMessage
+        </div>
+    }
+
+    <div style="background:#fff;border-radius:16px;padding:18px;box-shadow:0 8px 30px rgba(0,0,0,0.05);">
+        <table class="table">
+            <thead>
+                <tr>
+                    <th>ID</th>
+                    <th>Profile</th>
+                    <th>Project</th>
+                    <th>Lang</th>
+                    <th>Hours (UTC)</th>
+                    <th>Daily Limit</th>
+                    <th>Auto Publish</th>
+                    <th>Today</th>
+                    <th>Waiting Publish</th>
+                    <th>Last Run UTC</th>
+                    <th>Status</th>
+                    <th style="width:220px;">Actions</th>
+                </tr>
+            </thead>
+            <tbody>
+                @foreach (var item in Model.Items)
+                {
+                    <tr>
+                        <td>@item.AutomationProfileId</td>
+                        <td><strong>@item.Name</strong></td>
+                        <td>@item.ProjectId</td>
+                        <td>@item.LanguageCode</td>
+                        <td>@item.PreferredHoursCsv</td>
+                        <td>@item.DailyVideoLimit</td>
+                        <td>
+                            @if (item.AutoPublishYouTube)
+                            {
+                                <span style="display:inline-block;background:#2563eb;color:#fff;font-size:11px;font-weight:700;padding:4px 8px;border-radius:999px;">
+                                    ON
+                                </span>
+                            }
+                            else
+                            {
+                                <span style="display:inline-block;background:#6b7280;color:#fff;font-size:11px;font-weight:700;padding:4px 8px;border-radius:999px;">
+                                    OFF
+                                </span>
+                            }
+                        </td>
+                        <td>@item.TodayCreatedCount</td>
+                        <td>@item.CompletedUnpublishedCount</td>
+                        <td>@(item.LastRunAtUtc?.ToString("yyyy-MM-dd HH:mm") ?? "-")</td>
+                        <td>
+                            @if (item.IsActive)
+                            {
+                                <span style="display:inline-block;background:#16a34a;color:#fff;font-size:11px;font-weight:700;padding:4px 8px;border-radius:999px;">
+                                    ACTIVE
+                                </span>
+                            }
+                            else
+                            {
+                                <span style="display:inline-block;background:#dc2626;color:#fff;font-size:11px;font-weight:700;padding:4px 8px;border-radius:999px;">
+                                    PAUSED
+                                </span>
+                            }
+                        </td>
+                        <td>
+                            <div style="display:flex;gap:8px;flex-wrap:wrap;">
+                                <form asp-action="RunNow" method="post" style="display:inline;">
+                                    @Html.AntiForgeryToken()
+                                    <input type="hidden" name="id" value="@item.AutomationProfileId" />
+                                    <button type="submit" class="btn btn-sm btn-success">Run Now</button>
+                                </form>
+
+                                <form asp-action="Toggle" method="post" style="display:inline;">
+                                    @Html.AntiForgeryToken()
+                                    <input type="hidden" name="id" value="@item.AutomationProfileId" />
+                                    <button type="submit" class="btn btn-sm @(item.IsActive ? "btn-warning" : "btn-primary")">
+                                        @(item.IsActive ? "Pause" : "Activate")
+                                    </button>
+                                </form>
+                            </div>
+                        </td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+    </div>
+</div>
