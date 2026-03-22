@@ -1,6 +1,5 @@
 ﻿using Hgerman.ContentStudio.Application.Interfaces;
 using Hgerman.ContentStudio.Domain.Entities;
-using Hgerman.ContentStudio.Domain.Enums;
 using Hgerman.ContentStudio.Infrastructure.Data;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
@@ -11,27 +10,21 @@ public sealed class AutomationService : IAutomationService
 {
     private readonly ContentStudioDbContext _db;
     private readonly ITitleOptimizationService _titleOptimizationService;
+    private readonly IVideoJobService _videoJobService;
     private readonly IPublishService _publishService;
-    private readonly ITrendAnalysisService _trendAnalysisService;
-    private readonly ITitleFeedbackService _titleFeedbackService;
-    private readonly IAnalyticsFeedbackLoopService _analyticsFeedbackLoopService;
     private readonly ILogger<AutomationService> _logger;
 
     public AutomationService(
         ContentStudioDbContext db,
         ITitleOptimizationService titleOptimizationService,
+        IVideoJobService videoJobService,
         IPublishService publishService,
-        ITrendAnalysisService trendAnalysisService,
-        ITitleFeedbackService titleFeedbackService,
-        IAnalyticsFeedbackLoopService analyticsFeedbackLoopService,
         ILogger<AutomationService> logger)
     {
         _db = db;
         _titleOptimizationService = titleOptimizationService;
+        _videoJobService = videoJobService;
         _publishService = publishService;
-        _trendAnalysisService = trendAnalysisService;
-        _titleFeedbackService = titleFeedbackService;
-        _analyticsFeedbackLoopService = analyticsFeedbackLoopService;
         _logger = logger;
     }
 
@@ -49,18 +42,24 @@ public sealed class AutomationService : IAutomationService
         foreach (var profile in profiles)
         {
             if (!ShouldRunNow(profile, nowUtc))
+            {
                 continue;
+            }
 
-            createdCount += await CreateJobFromProfileAsync(
+            var created = await CreateJobFromProfileAsync(
                 profile,
                 nowUtc,
                 bypassDailyLimit: false,
                 updateLastRun: true,
                 cancellationToken);
+
+            createdCount += created;
         }
 
         if (createdCount > 0)
+        {
             await _db.SaveChangesAsync(cancellationToken);
+        }
 
         return createdCount;
     }
@@ -78,16 +77,20 @@ public sealed class AutomationService : IAutomationService
 
         foreach (var profile in profiles)
         {
-            createdCount += await CreateJobFromProfileAsync(
+            var created = await CreateJobFromProfileAsync(
                 profile,
                 nowUtc,
                 bypassDailyLimit: true,
                 updateLastRun: false,
                 cancellationToken);
+
+            createdCount += created;
         }
 
         if (createdCount > 0)
+        {
             await _db.SaveChangesAsync(cancellationToken);
+        }
 
         return createdCount;
     }
@@ -98,7 +101,9 @@ public sealed class AutomationService : IAutomationService
             .FirstOrDefaultAsync(x => x.AutomationProfileId == automationProfileId, cancellationToken);
 
         if (profile == null || !profile.IsActive)
+        {
             return 0;
+        }
 
         var created = await CreateJobFromProfileAsync(
             profile,
@@ -108,7 +113,9 @@ public sealed class AutomationService : IAutomationService
             cancellationToken);
 
         if (created > 0)
+        {
             await _db.SaveChangesAsync(cancellationToken);
+        }
 
         return created;
     }
@@ -116,7 +123,7 @@ public sealed class AutomationService : IAutomationService
     public async Task<int> PublishCompletedAutoJobsAsync(CancellationToken cancellationToken = default)
     {
         var completedAutoJobs = await _db.VideoJobs
-            .Where(x => x.Status == VideoJobStatus.Completed && x.JobNo.StartsWith("AUTO-") && !x.IsPublished)
+            .Where(x => x.JobNo.StartsWith("AUTO-") && !x.IsPublished)
             .OrderBy(x => x.VideoJobId)
             .Take(10)
             .ToListAsync(cancellationToken);
@@ -127,15 +134,19 @@ public sealed class AutomationService : IAutomationService
         {
             try
             {
-                var profileId = ExtractProfileIdFromJobNo(job.JobNo);
+                var profileId = job.AutomationProfileId ?? ExtractProfileIdFromJobNo(job.JobNo);
                 if (!profileId.HasValue)
+                {
                     continue;
+                }
 
                 var profile = await _db.AutomationProfiles
                     .FirstOrDefaultAsync(x => x.AutomationProfileId == profileId.Value, cancellationToken);
 
                 if (profile == null || !profile.AutoPublishYouTube)
+                {
                     continue;
+                }
 
                 var publishUrl = await _publishService.PublishToYouTubeAsync(job.VideoJobId, cancellationToken);
 
@@ -144,8 +155,13 @@ public sealed class AutomationService : IAutomationService
                     job.IsPublished = true;
                     job.PublishedDate = DateTime.UtcNow;
                     job.PublishedUrl = TrimToLength(publishUrl, 1000);
-                    job.UpdatedDate = DateTime.UtcNow;
+
                     publishedCount++;
+
+                    _logger.LogInformation(
+                        "Auto published VideoJobId={VideoJobId}, Url={PublishUrl}",
+                        job.VideoJobId,
+                        publishUrl);
                 }
             }
             catch (Exception ex)
@@ -155,7 +171,9 @@ public sealed class AutomationService : IAutomationService
         }
 
         if (publishedCount > 0)
+        {
             await _db.SaveChangesAsync(cancellationToken);
+        }
 
         return publishedCount;
     }
@@ -174,26 +192,15 @@ public sealed class AutomationService : IAutomationService
             cancellationToken);
 
         if (!bypassDailyLimit && createdToday >= profile.DailyVideoLimit)
-            return 0;
-
-        var trendIdeas = await _trendAnalysisService.BuildTrendIdeasAsync(profile, cancellationToken);
-
-        foreach (var trend in trendIdeas.Take(5))
         {
-            _db.TrendSnapshots.Add(new TrendSnapshot
-            {
-                AutomationProfileId = profile.AutomationProfileId,
-                Keyword = trend.Keyword,
-                TrendTitle = trend.Title,
-                TrendScore = trend.Score,
-                SourceName = trend.SourceName,
-                Notes = trend.Notes,
-                SnapshotDateUtc = nowUtc
-            });
+            _logger.LogInformation(
+                "Automation profile {ProfileId} skipped because daily limit reached.",
+                profile.AutomationProfileId);
+
+            return 0;
         }
 
-        var chosenTrend = trendIdeas.OrderByDescending(x => x.Score).FirstOrDefault();
-        var rawTopic = BuildTopic(profile, createdToday + 1, nowUtc, chosenTrend);
+        var rawTopic = BuildTopic(profile, createdToday + 1, nowUtc);
 
         var rawTitle = await _titleOptimizationService.GenerateTitleAsync(
             rawTopic,
@@ -205,63 +212,22 @@ public sealed class AutomationService : IAutomationService
         var safeTitle = TrimToLength(rawTitle, 200);
         var safeTopic = TrimToLength(rawTopic, 500);
 
-        var titleVariants = await _titleFeedbackService.GenerateVariantsAsync(
-            profile,
-            safeTopic,
-            safeTitle,
-            cancellationToken);
-
-        var winner = titleVariants
-            .OrderByDescending(x => x.PredictedScore)
-            .First();
-
-        var finalTitle = TrimToLength(winner.Title, 200);
-
         var description = await _titleOptimizationService.GenerateDescriptionAsync(
             safeTopic,
-            finalTitle,
+            safeTitle,
             profile.LanguageCode,
             cancellationToken);
 
         var safeSourcePrompt = TrimToLength(
-            BuildSourcePrompt(profile, safeTopic, description, chosenTrend),
+            BuildSourcePrompt(profile, safeTopic, description),
             4000);
 
-        var job = new VideoJob
-        {
-            ProjectId = profile.ProjectId,
-            JobNo = BuildJobNo(profile.AutomationProfileId, nowUtc),
-            Title = finalTitle,
-            Topic = safeTopic,
-            SourcePrompt = safeSourcePrompt,
-            LanguageCode = profile.LanguageCode,
-            PlatformType = (PlatformType)profile.PlatformType,
-            ToneType = (ToneType)profile.ToneType,
-            DurationTargetSec = profile.DurationTargetSec,
-            AspectRatio = (AspectRatioType)profile.AspectRatio,
-            SubtitleEnabled = profile.SubtitleEnabled,
-            ThumbnailEnabled = profile.ThumbnailEnabled,
-            Status = VideoJobStatus.Queued,
-            CurrentStep = VideoPipelineStep.Queued,
-            ProgressPercent = 0,
-            OverlayEnabled = true,
-            MotionMode = "cinematic",
-            RenderProfile = "cinematic",
-            IsPublished = false,
-            CreatedDate = nowUtc,
-            UpdatedDate = nowUtc
-        };
-
-        _db.VideoJobs.Add(job);
-        await _db.SaveChangesAsync(cancellationToken);
-
-        await _titleFeedbackService.RecordSyntheticPerformanceAsync(
-            job.VideoJobId,
-            profile.AutomationProfileId,
-            titleVariants,
-            cancellationToken);
-
-        await _analyticsFeedbackLoopService.EvaluateProfileAsync(profile.AutomationProfileId, cancellationToken);
+        var createdVideoJobId = await _videoJobService.CreateAutomationJobFromProfileAsync(
+            automationProfileId: profile.AutomationProfileId,
+            title: safeTitle,
+            topic: safeTopic,
+            sourcePrompt: safeSourcePrompt,
+            cancellationToken: cancellationToken);
 
         if (updateLastRun)
         {
@@ -271,10 +237,10 @@ public sealed class AutomationService : IAutomationService
         }
 
         _logger.LogInformation(
-            "Auto video job created. ProfileId={ProfileId}, JobNo={JobNo}, Title={Title}",
+            "Auto video job created. ProfileId={ProfileId}, VideoJobId={VideoJobId}, Title={Title}",
             profile.AutomationProfileId,
-            job.JobNo,
-            job.Title);
+            createdVideoJobId,
+            safeTitle);
 
         return 1;
     }
@@ -282,8 +248,16 @@ public sealed class AutomationService : IAutomationService
     private static bool ShouldRunNow(AutomationProfile profile, DateTime nowUtc)
     {
         var hours = ParseHours(profile.PreferredHoursCsv);
-        if (hours.Count == 0) return false;
-        if (!hours.Contains(nowUtc.Hour)) return false;
+
+        if (hours.Count == 0)
+        {
+            return false;
+        }
+
+        if (!hours.Contains(nowUtc.Hour))
+        {
+            return false;
+        }
 
         if (profile.LastRunAtUtc.HasValue &&
             profile.LastRunAtUtc.Value.Date == nowUtc.Date &&
@@ -300,89 +274,94 @@ public sealed class AutomationService : IAutomationService
         var result = new HashSet<int>();
 
         if (string.IsNullOrWhiteSpace(csv))
+        {
             return result;
+        }
 
         var parts = csv.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
 
         foreach (var part in parts)
         {
             if (int.TryParse(part, out var hour) && hour >= 0 && hour <= 23)
+            {
                 result.Add(hour);
+            }
         }
 
         return result;
     }
 
-    private static string GetAutoPrefix(int automationProfileId) => $"AUTO-{automationProfileId}-";
-
-    private static string BuildJobNo(int automationProfileId, DateTime nowUtc)
-    {
-        var suffix = Guid.NewGuid().ToString("N")[..6].ToUpperInvariant();
-        return $"AUTO-{automationProfileId}-{nowUtc:yyyyMMddHHmmss}-{suffix}";
-    }
+    private static string GetAutoPrefix(int automationProfileId)
+        => $"AUTO-{automationProfileId}-";
 
     private static int? ExtractProfileIdFromJobNo(string? jobNo)
     {
         if (string.IsNullOrWhiteSpace(jobNo))
+        {
             return null;
+        }
 
         var parts = jobNo.Split('-', StringSplitOptions.RemoveEmptyEntries);
-        if (parts.Length < 3) return null;
-        if (!string.Equals(parts[0], "AUTO", StringComparison.OrdinalIgnoreCase)) return null;
+
+        if (parts.Length < 3)
+        {
+            return null;
+        }
+
+        if (!string.Equals(parts[0], "AUTO", StringComparison.OrdinalIgnoreCase))
+        {
+            return null;
+        }
 
         return int.TryParse(parts[1], out var profileId) ? profileId : null;
     }
 
-    private static string BuildTopic(AutomationProfile profile, int sequence, DateTime nowUtc, TrendIdeaResult? trend)
+    private static string BuildTopic(AutomationProfile profile, int sequence, DateTime nowUtc)
     {
-        var trendText = trend == null ? string.Empty : $" | trend:{trend.Keyword} | angle:{trend.Title}";
-        return $"{profile.TopicPrompt} | slot {sequence} | {nowUtc:yyyy-MM-dd}{trendText}";
+        return $"{profile.TopicPrompt} | slot {sequence} | {nowUtc:yyyy-MM-dd}";
     }
 
-    private static string BuildSourcePrompt(
-        AutomationProfile profile,
-        string topic,
-        string description,
-        TrendIdeaResult? trend)
+    private static string BuildSourcePrompt(AutomationProfile profile, string topic, string description)
     {
-        var trendContext = trend == null
-            ? "No trend context."
-            : $"Trend Keyword: {trend.Keyword}\nTrend Angle: {trend.Title}\nTrend Score: {trend.Score}";
+        return
+$"""
+Create a short-form motivational video script.
 
-        return $"""
-                Create a short-form motivational video script.
+Topic: {topic}
+Hook style: {profile.HookTemplate}
+Viral pattern: {profile.ViralPatternTemplate}
+Extra context: {description}
 
-                Topic: {topic}
-                Hook style: {profile.HookTemplate}
-                Viral pattern: {profile.ViralPatternTemplate}
-                Growth mode: {profile.GrowthMode}
-                Extra context: {description}
-
-                {trendContext}
-
-                Rules:
-                - Strong first 2 seconds
-                - Emotional hook
-                - Simple words
-                - Short sentences
-                - Natural CTA at end
-                - Make it suitable for YouTube Shorts
-                """;
+Rules:
+- Strong first 2 seconds
+- Emotional hook
+- Simple words
+- Short sentences
+- Natural CTA at end
+""";
     }
 
     private static string TrimToLength(string? value, int maxLength)
     {
         if (string.IsNullOrWhiteSpace(value))
+        {
             return string.Empty;
+        }
 
         var cleaned = value.Trim();
+
         if (cleaned.Length <= maxLength)
+        {
             return cleaned;
+        }
 
         var shortened = cleaned[..maxLength].Trim();
         var lastSpace = shortened.LastIndexOf(' ');
+
         if (lastSpace > 20)
+        {
             shortened = shortened[..lastSpace].Trim();
+        }
 
         return shortened;
     }

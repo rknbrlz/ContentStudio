@@ -8,8 +8,10 @@ public class VideoJobListItemDto
     public string LanguageCode { get; set; } = string.Empty;
     public string PlatformType { get; set; } = string.Empty;
     public string Status { get; set; } = string.Empty;
-    public string CurrentStep { get; set; } = string.Empty;
+    public string Step { get; set; } = string.Empty;
     public DateTime CreatedDate { get; set; }
-    public DateTime? UpdatedDate { get; set; }
     public bool IsPublished { get; set; }
+
+    public string ProfileName { get; set; } = "Manual";
+    public int? AutomationProfileId { get; set; }
 }

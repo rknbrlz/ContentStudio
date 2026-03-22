@@ -1,79 +1,90 @@
-﻿@model List<Hgerman.ContentStudio.Shared.DTOs.AutomationProfileListItemDto>
+﻿@model IReadOnlyList<Hgerman.ContentStudio.Domain.Entities.AutomationProfile>
 
 @{
     ViewData["Title"] = "Automation Profiles";
 }
 
-<div class="container py-4">
-    <div class="d-flex justify-content-between align-items-center mb-3">
+<div class="container-fluid">
+    <div class="d-flex justify-content-between align-items-start mb-4">
         <div>
-            <h2 class="mb-1">Automation Profiles</h2>
+            <h1 class="mb-1">Automation Profiles</h1>
             <div class="text-muted">Create, edit and run content automation profiles.</div>
         </div>
-        <a asp-action="Create" class="btn btn-primary">+ New Profile</a>
+
+        <div>
+            <a asp-action="Create" class="btn btn-primary">+ New Profile</a>
+        </div>
     </div>
 
     <div class="card shadow-sm">
         <div class="card-body p-0">
-            <table class="table table-hover align-middle mb-0">
-                <thead class="table-light">
-                    <tr>
-                        <th>ID</th>
-                        <th>Name</th>
-                        <th>Status</th>
-                        <th>Language</th>
-                        <th>Growth</th>
-                        <th>Daily Limit</th>
-                        <th>Hours</th>
-                        <th>Last Run</th>
-                        <th class="text-end">Actions</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    @if (Model == null || Model.Count == 0)
-                    {
-                        <tr>
-                            <td colspan="9" class="text-center text-muted py-4">No automation profile yet.</td>
-                        </tr>
-                    }
-                    else
-                    {
-                        foreach (var item in Model)
-                        {
+            @if (Model != null && Model.Any())
+            {
+                <div class="table-responsive">
+                    <table class="table table-hover align-middle mb-0">
+                        <thead class="table-light">
                             <tr>
-                                <td>@item.AutomationProfileId</td>
-                                <td class="fw-semibold">@item.Name</td>
-                                <td>
-                                    @if (item.IsActive)
-                                    {
-                                        <span class="badge bg-success">Active</span>
-                                    }
-                                    else
-                                    {
-                                        <span class="badge bg-secondary">Passive</span>
-                                    }
+                                <th>ID</th>
+                                <th>Name</th>
+                                <th>Status</th>
+                                <th>Language</th>
+                                <th>Growth</th>
+                                <th>Daily Limit</th>
+                                <th>Hours</th>
+                                <th>Last Run</th>
+                                <th></th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @foreach (var item in Model.OrderByDescending(x => x.AutomationProfileId))
+                            {
+                                <tr>
+                                    <td>@item.AutomationProfileId</td>
+                                    <td>@item.Name</td>
+                                    <td>
+                                        @if (item.IsActive)
+                                        {
+                                            <span class="badge text-bg-success">Active</span>
+                                        }
+                                        else
+                                        {
+                                            <span class="badge text-bg-secondary">Passive</span>
+                                        }
                                 </td>
                                 <td>@item.LanguageCode</td>
                                 <td>@item.GrowthMode</td>
                                 <td>@item.DailyVideoLimit</td>
                                 <td>@item.PreferredHoursCsv</td>
-                                <td>@(item.LastRunAtUtc?.ToString("yyyy-MM-dd HH:mm") ?? "-")</td>
-                                <td class="text-end">
-                                    <a asp-action="Details" asp-route-id="@item.AutomationProfileId" class="btn btn-sm btn-outline-dark">Details</a>
-                                    <a asp-action="Edit" asp-route-id="@item.AutomationProfileId" class="btn btn-sm btn-outline-primary">Edit</a>
+                                <td>
+                                    @(item.LastRunAtUtc.HasValue
+                                                                    ? item.LastRunAtUtc.Value.ToLocalTime().ToString("yyyy-MM-dd HH:mm")
+                                                                    : "-")
+                            </td>
+                            <td>
+                                <div class="d-flex gap-1">
+                                    <a asp-action="Details"
+                                       asp-route-id="@item.AutomationProfileId"
+                                       class="btn btn-sm btn-outline-dark">
+                                        Details
+                                    </a>
 
-                                    <form asp-action="Toggle" asp-route-id="@item.AutomationProfileId" method="post" class="d-inline">
-                                        @Html.AntiForgeryToken()
-                                        <button type="submit" class="btn btn-sm btn-outline-warning">
-                                            @(item.IsActive ? "Disable" : "Enable")
-                                        </button>
-                                    </form>
-                                </td>
-                            </tr>
-                        }
-                    }
-                </tbody>
-            </table>
+                                            <a asp-action="Edit"
+                                               asp-route-id="@item.AutomationProfileId"
+                                               class="btn btn-sm btn-outline-primary">
+                                                Edit
+                                            </a>
+                                        </div>
+                                    </td>
+                                </tr>
+                                                }
+                        </tbody>
+                    </table>
+                </div>
+            }
+            else
+            {
+                <div class="p-3 text-muted">No automation profiles found.</div>
+            }
         </div>
     </div>
 </div>

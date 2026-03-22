@@ -1,4 +1,5 @@
-﻿using Hgerman.ContentStudio.Application.Interfaces;
+﻿using System.Text;
+using Hgerman.ContentStudio.Application.Interfaces;
 using Hgerman.ContentStudio.Domain.Entities;
 using Hgerman.ContentStudio.Domain.Enums;
 using Hgerman.ContentStudio.Infrastructure.Data;
@@ -112,6 +113,7 @@ public sealed class JobProcessor : IJobProcessor
             failedJob.LastHeartbeatAt = null;
             failedJob.UpdatedDate = DateTime.UtcNow;
             failedJob.RetryCount += 1;
+            failedJob.FailureCount += 1;
 
             _db.ErrorLogs.Add(new ErrorLog
             {
@@ -136,9 +138,8 @@ public sealed class JobProcessor : IJobProcessor
         await using var tx = await _db.Database.BeginTransactionAsync(cancellationToken);
 
         var job = await _db.VideoJobs
-            .Where(x =>
-                x.Status == VideoJobStatus.Queued &&
-                (x.LockExpiresAt == null || x.LockExpiresAt < utcNow))
+            .Where(x => x.Status == VideoJobStatus.Queued &&
+                        (x.LockExpiresAt == null || x.LockExpiresAt < utcNow))
             .OrderBy(x => x.VideoJobId)
             .FirstOrDefaultAsync(cancellationToken);
 
@@ -156,6 +157,8 @@ public sealed class JobProcessor : IJobProcessor
         job.LastHeartbeatAt = utcNow;
         job.UpdatedDate = utcNow;
         job.ErrorMessage = null;
+        job.StartedDate ??= utcNow;
+        job.LastAttemptDate = utcNow;
 
         await _db.SaveChangesAsync(cancellationToken);
         await tx.CommitAsync(cancellationToken);
@@ -193,6 +196,7 @@ public sealed class JobProcessor : IJobProcessor
 
         var scriptAsset = new Asset
         {
+            ProjectId = job.ProjectId,
             VideoJobId = job.VideoJobId,
             AssetType = AssetType.ScriptText,
             ProviderName = "OpenAI",
@@ -200,7 +204,7 @@ public sealed class JobProcessor : IJobProcessor
             BlobPath = scriptBlobPath,
             PublicUrl = scriptPublicUrl,
             MimeType = "text/plain",
-            FileSize = System.Text.Encoding.UTF8.GetByteCount(script),
+            FileSize = Encoding.UTF8.GetByteCount(script),
             Status = VideoJobStatus.Completed,
             CreatedDate = DateTime.UtcNow,
             UpdatedDate = DateTime.UtcNow
@@ -275,6 +279,7 @@ public sealed class JobProcessor : IJobProcessor
             scene.ImageAssetId = imageAsset.AssetId;
             scene.Status = VideoJobStatus.Completed;
             scene.UpdatedDate = DateTime.UtcNow;
+
             await _db.SaveChangesAsync(cancellationToken);
         }
 
@@ -338,15 +343,24 @@ public sealed class JobProcessor : IJobProcessor
 
         foreach (var asset in orderedSceneAssets)
         {
+            if (string.IsNullOrWhiteSpace(asset.BlobPath))
+            {
+                throw new InvalidOperationException($"BlobPath is empty for scene asset {asset.AssetId}.");
+            }
+
             var localPath = await _storageService.GetLocalPathAsync(asset.BlobPath, cancellationToken);
 
             if (string.IsNullOrWhiteSpace(localPath) || !File.Exists(localPath))
             {
                 throw new FileNotFoundException(
-                    $"Scene image file not found for asset {asset.AssetId}. BlobPath={asset.BlobPath}");
+                    $"Scene image file not found for asset {asset.AssetId}.{Environment.NewLine}BlobPath={asset.BlobPath}");
             }
 
-            var targetPath = Path.Combine(scenesFolderPath, asset.FileName);
+            var targetFileName = string.IsNullOrWhiteSpace(asset.FileName)
+                ? $"scene_{asset.AssetId}.png"
+                : asset.FileName;
+
+            var targetPath = Path.Combine(scenesFolderPath, targetFileName);
             File.Copy(localPath, targetPath, true);
         }
 
@@ -359,9 +373,7 @@ public sealed class JobProcessor : IJobProcessor
         string? subtitleFilePath = null;
         if (subtitleAsset is not null && !string.IsNullOrWhiteSpace(subtitleAsset.BlobPath))
         {
-            subtitleFilePath = await _storageService.GetLocalPathAsync(
-    subtitleAsset.BlobPath,
-    cancellationToken);
+            subtitleFilePath = await _storageService.GetLocalPathAsync(subtitleAsset.BlobPath, cancellationToken);
         }
 
         var finalVideoPath = await _videoRenderService.RenderFinalVideoAsync(
@@ -384,31 +396,44 @@ public sealed class JobProcessor : IJobProcessor
             throw new InvalidOperationException("Final video file is empty.");
         }
 
-        var finalBlobPath = $"projects/{job.ProjectId}/jobs/{job.VideoJobId}/final/final.mp4";
+        var finalFileName = Path.GetFileName(finalVideoPath);
+        var finalBlobPath = $"projects/{job.ProjectId}/jobs/{job.VideoJobId}/final/{finalFileName}";
         var finalBytes = await File.ReadAllBytesAsync(finalVideoPath, cancellationToken);
+
         var finalPublicUrl = await _storageService.UploadBytesAsync(
             finalBlobPath,
             finalBytes,
             "video/mp4",
             cancellationToken);
 
-        var finalAsset = new Asset
-        {
-            VideoJobId = job.VideoJobId,
-            AssetType = AssetType.FinalVideo,
-            ProviderName = "FFmpeg",
-            FileName = "final.mp4",
-            BlobPath = finalBlobPath,
-            PublicUrl = finalPublicUrl,
-            MimeType = "video/mp4",
-            FileSize = finalBytes.LongLength,
-            DurationMs = job.DurationTargetSec * 1000,
-            Status = VideoJobStatus.Completed,
-            CreatedDate = DateTime.UtcNow,
-            UpdatedDate = DateTime.UtcNow
-        };
+        var existingFinalAsset = await _db.Assets
+            .FirstOrDefaultAsync(
+                x => x.VideoJobId == job.VideoJobId && x.AssetType == AssetType.FinalVideo,
+                cancellationToken);
 
-        _db.Assets.Add(finalAsset);
+        if (existingFinalAsset is null)
+        {
+            existingFinalAsset = new Asset
+            {
+                ProjectId = job.ProjectId,
+                VideoJobId = job.VideoJobId,
+                AssetType = AssetType.FinalVideo,
+                ProviderName = "FFmpeg",
+                CreatedDate = DateTime.UtcNow
+            };
+
+            _db.Assets.Add(existingFinalAsset);
+        }
+
+        existingFinalAsset.FileName = finalFileName;
+        existingFinalAsset.BlobPath = finalBlobPath;
+        existingFinalAsset.PublicUrl = finalPublicUrl;
+        existingFinalAsset.MimeType = "video/mp4";
+        existingFinalAsset.FileSize = finalBytes.LongLength;
+        existingFinalAsset.DurationMs = job.DurationTargetSec * 1000;
+        existingFinalAsset.Status = VideoJobStatus.Completed;
+        existingFinalAsset.UpdatedDate = DateTime.UtcNow;
+
         await _db.SaveChangesAsync(cancellationToken);
 
         job.Status = VideoJobStatus.Completed;
@@ -423,7 +448,10 @@ public sealed class JobProcessor : IJobProcessor
 
         await _db.SaveChangesAsync(cancellationToken);
 
-        _logger.LogInformation("Job {VideoJobId} completed successfully.", job.VideoJobId);
+        _logger.LogInformation(
+            "Job {VideoJobId} completed successfully. Final file: {FinalFileName}",
+            job.VideoJobId,
+            finalFileName);
     }
 
     private async Task UpdateStepAsync(

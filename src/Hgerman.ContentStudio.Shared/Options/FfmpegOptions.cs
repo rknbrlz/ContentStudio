@@ -1,6 +1,6 @@
 namespace Hgerman.ContentStudio.Shared.Options;
 
-public sealed class FfmpegOptions
+public class FfmpegOptions
 {
     public string? BinaryPath { get; set; }
 }

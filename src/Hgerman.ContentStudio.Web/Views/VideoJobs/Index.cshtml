@@ -31,6 +31,7 @@
                     <tr>
                         <th>Job No</th>
                         <th>Title</th>
+                        <th>Profile</th>
                         <th>Language</th>
                         <th>Platform</th>
                         <th>Status</th>
@@ -57,12 +58,27 @@
 
                                 @item.Title
                             </td>
+                            <td>
+                                @if (item.AutomationProfileId.HasValue)
+                                {
+                                    <a asp-controller="AutomationProfiles"
+                                       asp-action="Details"
+                                       asp-route-id="@item.AutomationProfileId.Value"
+                                       class="badge text-bg-dark text-decoration-none">
+                                        @item.ProfileName
+                                    </a>
+                                }
+                                else
+                                {
+                                    <span class="badge text-bg-secondary">Manual</span>
+                                }
+                            </td>
                             <td>@item.LanguageCode</td>
                             <td>@item.PlatformType</td>
                             <td>
                                 <span class="badge text-bg-secondary">@item.Status</span>
                             </td>
-                            <td>@item.CurrentStep</td>
+                            <td>@item.Step</td>
                             <td>@item.CreatedDate.ToString("yyyy-MM-dd HH:mm")</td>
                             <td>
                                 <a asp-action="Details" asp-route-id="@item.VideoJobId" class="btn btn-sm btn-outline-dark">

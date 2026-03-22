@@ -1,165 +1,80 @@
-﻿@model Hgerman.ContentStudio.Web.Models.CreateVideoJobViewModel
-@using Hgerman.ContentStudio.Domain.Enums
-@using Microsoft.AspNetCore.Mvc.Rendering
+﻿@model Hgerman.ContentStudio.Shared.DTOs.CreateVideoJobRequest
 
 @{
     ViewData["Title"] = "Create Video Job";
-
-    var platformTypes = Enum.GetValues<PlatformType>()
-        .Select(x => new SelectListItem(x.ToString(), x.ToString()));
-
-    var toneTypes = Enum.GetValues<ToneType>()
-        .Select(x => new SelectListItem(x.ToString(), x.ToString()));
-
-    var aspectRatios = Enum.GetValues<AspectRatioType>()
-        .Select(x => new SelectListItem(x.ToString(), x.ToString()));
-
-    var inputModes = Enum.GetValues<InputModeType>()
-        .Select(x => new SelectListItem(x.ToString(), x.ToString()));
 }
 
-<div class="container py-4">
-
-    <div class="mb-4">
-        <h1 class="fw-bold mb-1">Create Video Job</h1>
-        <div class="text-muted">AI-assisted short-form video pipeline</div>
+<div class="container-fluid">
+    <div class="d-flex justify-content-between align-items-start mb-4">
+        <div>
+            <h1 class="mb-1">Create Video Job</h1>
+            <div class="text-muted">Create and queue a new video generation job.</div>
+        </div>
     </div>
 
-    <div class="row justify-content-center">
-        <div class="col-12 col-xl-9">
+    <div class="card shadow-sm">
+        <div class="card-header">
+            <strong>Job Details</strong>
+        </div>
+        <div class="card-body">
+            <form asp-action="Create" method="post">
+                <div asp-validation-summary="ModelOnly" class="text-danger mb-3"></div>
 
-            <div class="card shadow-sm border-0 rounded-4">
-                <div class="card-body p-4 p-lg-5">
+                <div class="row g-3">
+                    <div class="col-md-3">
+                        <label asp-for="ProjectId" class="form-label"></label>
+                        <input asp-for="ProjectId" class="form-control" />
+                        <span asp-validation-for="ProjectId" class="text-danger"></span>
+                    </div>
 
-                    <h2 class="mb-3">Create Video Job</h2>
-                    <p class="text-muted mb-4">
-                        Create AI video or upload one image and generate video from it.
-                    </p>
+                    <div class="col-md-9">
+                        <label asp-for="Title" class="form-label"></label>
+                        <input asp-for="Title" class="form-control" />
+                        <span asp-validation-for="Title" class="text-danger"></span>
+                    </div>
 
-                    <form asp-action="Create" method="post" enctype="multipart/form-data">
+                    <div class="col-12">
+                        <label asp-for="Topic" class="form-label"></label>
+                        <input asp-for="Topic" class="form-control" />
+                        <span asp-validation-for="Topic" class="text-danger"></span>
+                    </div>
 
-                        @Html.AntiForgeryToken()
+                    <div class="col-md-3">
+                        <label asp-for="LanguageCode" class="form-label"></label>
+                        <input asp-for="LanguageCode" class="form-control" />
+                        <span asp-validation-for="LanguageCode" class="text-danger"></span>
+                    </div>
 
-                        <div asp-validation-summary="ModelOnly" class="text-danger mb-3"></div>
+                    <div class="col-md-3">
+                        <label asp-for="DurationTargetSec" class="form-label"></label>
+                        <input asp-for="DurationTargetSec" class="form-control" />
+                        <span asp-validation-for="DurationTargetSec" class="text-danger"></span>
+                    </div>
 
-                        <div class="row g-3">
-
-                            <div class="col-md-6">
-                                <label asp-for="Title" class="form-label"></label>
-                                <input asp-for="Title" class="form-control" />
-                            </div>
-
-                            <div class="col-md-6">
-                                <label asp-for="Topic" class="form-label"></label>
-                                <input asp-for="Topic" class="form-control" />
-                            </div>
-
-                            <div class="col-12">
-                                <label asp-for="SourcePrompt" class="form-label"></label>
-                                <textarea asp-for="SourcePrompt" class="form-control" rows="4"
-                                          placeholder="Example: Create a luxury product reel..."></textarea>
-                            </div>
-
-                            <div class="col-md-4">
-                                <label asp-for="ProjectId"></label>
-                                <input asp-for="ProjectId" class="form-control" />
-                            </div>
-
-                            <div class="col-md-4">
-                                <label asp-for="LanguageCode"></label>
-                                <input asp-for="LanguageCode" class="form-control" />
-                            </div>
-
-                            <div class="col-md-4">
-                                <label asp-for="DurationTargetSec"></label>
-                                <input asp-for="DurationTargetSec" class="form-control" />
-                            </div>
-
-                            <!-- 🔥 BURASI SENİN SORUNLU ALANDI -->
-                            <div class="col-md-4">
-                                <label asp-for="PlatformType"></label>
-                                <select asp-for="PlatformType" asp-items="platformTypes" class="form-select"></select>
-                            </div>
-
-                            <div class="col-md-4">
-                                <label asp-for="ToneType"></label>
-                                <select asp-for="ToneType" asp-items="toneTypes" class="form-select"></select>
-                            </div>
-
-                            <div class="col-md-4">
-                                <label asp-for="AspectRatio"></label>
-                                <select asp-for="AspectRatio" asp-items="aspectRatios" class="form-select"></select>
-                            </div>
-
-                            <div class="col-md-6">
-                                <label asp-for="VoiceProvider"></label>
-                                <input asp-for="VoiceProvider" class="form-control" />
-                            </div>
-
-                            <div class="col-md-6">
-                                <label asp-for="VoiceName"></label>
-                                <input asp-for="VoiceName" class="form-control" />
-                            </div>
-
-                            <div class="col-md-6">
-                                <label asp-for="InputMode"></label>
-                                <select asp-for="InputMode" asp-items="inputModes" class="form-select" id="InputMode"></select>
-                            </div>
-
-                            <div class="col-md-3 d-flex align-items-end">
-                                <div class="form-check">
-                                    <input asp-for="SubtitleEnabled" class="form-check-input" />
-                                    <label asp-for="SubtitleEnabled" class="form-check-label"></label>
-                                </div>
-                            </div>
-
-                            <div class="col-md-3 d-flex align-items-end">
-                                <div class="form-check">
-                                    <input asp-for="ThumbnailEnabled" class="form-check-input" />
-                                    <label asp-for="ThumbnailEnabled" class="form-check-label"></label>
-                                </div>
-                            </div>
-
-                            <!-- Upload alanı -->
-                            <div class="col-12" id="uploadArea" style="display:none;">
-                                <label asp-for="SourceImage"></label>
-                                <input asp-for="SourceImage" type="file" class="form-control" accept="image/*" />
-                            </div>
-
-                            <div class="col-12 pt-3">
-                                <button class="btn btn-dark px-4">Create Job</button>
-                                <a asp-action="Index" class="btn btn-outline-secondary ms-2">Back</a>
-                            </div>
-
+                    <div class="col-md-3 d-flex align-items-end">
+                        <div class="form-check">
+                            <input asp-for="SubtitleEnabled" class="form-check-input" />
+                            <label asp-for="SubtitleEnabled" class="form-check-label"></label>
                         </div>
+                    </div>
 
-                    </form>
-
+                    <div class="col-md-3 d-flex align-items-end">
+                        <div class="form-check">
+                            <input asp-for="ThumbnailEnabled" class="form-check-input" />
+                            <label asp-for="ThumbnailEnabled" class="form-check-label"></label>
+                        </div>
+                    </div>
                 </div>
-            </div>
 
+                <div class="mt-4 d-flex gap-2">
+                    <button type="submit" class="btn btn-primary">Create & Queue</button>
+                    <a asp-action="Index" class="btn btn-outline-secondary">Back</a>
+                </div>
+            </form>
         </div>
     </div>
 </div>
 
 @section Scripts {
-    <script>
-        const input = document.getElementById("InputMode");
-        const upload = document.getElementById("uploadArea");
-
-        function toggle() {
-            if (!input || !upload) return;
-
-            if (input.value === "UploadedSingleImage") {
-                upload.style.display = "block";
-            } else {
-                upload.style.display = "none";
-            }
-        }
-
-        if (input) {
-            input.addEventListener("change", toggle);
-            toggle();
-        }
-    </script>
+    <partial name="_ValidationScriptsPartial" />
 }

@@ -5,10 +5,11 @@ namespace Hgerman.ContentStudio.Domain.Entities;
 public class AutomationProfile : BaseEntity
 {
     public int AutomationProfileId { get; set; }
+
     public string Name { get; set; } = string.Empty;
     public bool IsActive { get; set; } = true;
-
     public int ProjectId { get; set; }
+
     public string LanguageCode { get; set; } = "en";
     public int PlatformType { get; set; }
     public int ToneType { get; set; }
@@ -27,10 +28,10 @@ public class AutomationProfile : BaseEntity
 
     public bool AutoPublishYouTube { get; set; }
 
-    // Phase 2
     public string? TrendKeywordsCsv { get; set; }
     public string? SeedTopicsCsv { get; set; }
     public string GrowthMode { get; set; } = "balanced";
+
     public int TitleTestVariants { get; set; } = 3;
     public decimal MinSuccessScore { get; set; } = 55m;
 
@@ -42,4 +43,5 @@ public class AutomationProfile : BaseEntity
     public ICollection<TrendSnapshot> TrendSnapshots { get; set; } = new List<TrendSnapshot>();
     public ICollection<TitlePerformance> TitlePerformances { get; set; } = new List<TitlePerformance>();
     public ICollection<AutomationFeedback> FeedbackItems { get; set; } = new List<AutomationFeedback>();
+    public ICollection<VideoJob> VideoJobs { get; set; } = new List<VideoJob>();
 }

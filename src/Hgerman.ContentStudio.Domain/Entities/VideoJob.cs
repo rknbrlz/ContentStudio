@@ -30,8 +30,8 @@ public class VideoJob : BaseEntity
 
     public VideoJobStatus Status { get; set; } = VideoJobStatus.Draft;
     public VideoPipelineStep CurrentStep { get; set; } = VideoPipelineStep.Draft;
-    public string? ErrorMessage { get; set; }
 
+    public string? ErrorMessage { get; set; }
     public int RetryCount { get; set; }
     public int MaxRetryCount { get; set; } = 3;
     public int FailureCount { get; set; }
@@ -56,8 +56,12 @@ public class VideoJob : BaseEntity
     public DateTime? PublishedDate { get; set; }
     public string? PublishedUrl { get; set; }
 
+    public int? AutomationProfileId { get; set; }
+    public string? ProfileSnapshotJson { get; set; }
+
     public Project? Project { get; set; }
     public Asset? PrimarySourceAsset { get; set; }
+    public AutomationProfile? AutomationProfile { get; set; }
 
     public ICollection<VideoScene> Scenes { get; set; } = new List<VideoScene>();
     public ICollection<Asset> Assets { get; set; } = new List<Asset>();

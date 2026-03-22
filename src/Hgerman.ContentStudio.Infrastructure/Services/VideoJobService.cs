@@ -1,5 +1,6 @@
 using Hgerman.ContentStudio.Application.Interfaces;
 using Hgerman.ContentStudio.Application.Services;
+using Hgerman.ContentStudio.Application.Helpers;
 using Hgerman.ContentStudio.Domain.Entities;
 using Hgerman.ContentStudio.Domain.Enums;
 using Hgerman.ContentStudio.Infrastructure.Data;
@@ -53,6 +54,8 @@ public class VideoJobService : IVideoJobService
     public async Task<IReadOnlyList<VideoJobListItemDto>> GetJobListAsync(CancellationToken cancellationToken = default)
     {
         return await _db.VideoJobs
+            .AsNoTracking()
+            .Include(x => x.AutomationProfile)
             .OrderByDescending(x => x.VideoJobId)
             .Select(x => new VideoJobListItemDto
             {
@@ -62,10 +65,11 @@ public class VideoJobService : IVideoJobService
                 LanguageCode = x.LanguageCode,
                 PlatformType = x.PlatformType.ToString(),
                 Status = x.Status.ToString(),
-                CurrentStep = x.CurrentStep.ToString(),
+                Step = x.CurrentStep.ToString(),
                 CreatedDate = x.CreatedDate,
-                UpdatedDate = x.UpdatedDate,
-                IsPublished = x.IsPublished
+                IsPublished = x.IsPublished,
+                ProfileName = x.AutomationProfile != null ? x.AutomationProfile.Name : "Manual",
+                AutomationProfileId = x.AutomationProfileId
             })
             .ToListAsync(cancellationToken);
     }
@@ -203,5 +207,52 @@ public class VideoJobService : IVideoJobService
             return;
 
         property.SetValue(target, value);
+    }
+
+    public async Task<int> CreateAutomationJobFromProfileAsync(
+    int automationProfileId,
+    string title,
+    string? topic,
+    string? sourcePrompt,
+    CancellationToken cancellationToken = default)
+    {
+        var profile = await _db.AutomationProfiles
+            .FirstOrDefaultAsync(x => x.AutomationProfileId == automationProfileId, cancellationToken);
+
+        if (profile == null)
+        {
+            throw new InvalidOperationException($"Automation profile not found: {automationProfileId}");
+        }
+
+        var job = new VideoJob
+        {
+            ProjectId = profile.ProjectId,
+            JobNo = $"AUTO-{DateTime.UtcNow:yyyyMMddHHmmss}-{Guid.NewGuid():N}"[..40],
+            Title = title,
+            Topic = topic,
+            SourcePrompt = sourcePrompt,
+            LanguageCode = profile.LanguageCode,
+            PlatformType = (PlatformType)profile.PlatformType,
+            ToneType = (ToneType)profile.ToneType,
+            DurationTargetSec = profile.DurationTargetSec,
+            AspectRatio = (AspectRatioType)profile.AspectRatio,
+            SubtitleEnabled = profile.SubtitleEnabled,
+            ThumbnailEnabled = profile.ThumbnailEnabled,
+            Status = VideoJobStatus.Queued,
+            CurrentStep = VideoPipelineStep.Draft,
+            InputMode = InputModeType.AiOnly,
+            ProgressPercent = 0,
+            TimeoutSec = 900,
+            FailureCount = 0,
+            OverlayEnabled = true,
+
+            AutomationProfileId = profile.AutomationProfileId,
+            ProfileSnapshotJson = AutomationProfileSnapshotHelper.Build(profile)
+        };
+
+        _db.VideoJobs.Add(job);
+        await _db.SaveChangesAsync(cancellationToken);
+
+        return job.VideoJobId;
     }
 }
