@@ -1,5 +1,4 @@
 ﻿using System.ComponentModel.DataAnnotations;
-using Hgerman.ContentStudio.Shared.DTOs;
 
 namespace Hgerman.ContentStudio.Web.Models;
 
@@ -7,118 +6,68 @@ public class AutomationProfileEditViewModel
 {
     public int? AutomationProfileId { get; set; }
 
-    [Required, StringLength(150)]
-    public string Name { get; set; } = string.Empty;
-
-    public bool IsActive { get; set; } = true;
-
-    [Required]
+    [Display(Name = "Project Id")]
     public int ProjectId { get; set; }
 
-    [Required, StringLength(10)]
+    [Required]
+    [StringLength(200)]
+    public string Name { get; set; } = string.Empty;
+
+    [Display(Name = "Active")]
+    public bool IsActive { get; set; }
+
+    [Display(Name = "Language Code")]
+    [StringLength(10)]
     public string LanguageCode { get; set; } = "en";
 
-    [Required]
+    [Display(Name = "Platform Type")]
     public int PlatformType { get; set; }
 
-    [Required]
+    [Display(Name = "Tone Type")]
     public int ToneType { get; set; }
 
-    [Range(15, 120)]
-    public int DurationTargetSec { get; set; } = 45;
+    [Display(Name = "Duration Target (sec)")]
+    public int DurationTargetSec { get; set; }
 
-    [Required]
+    [Display(Name = "Aspect Ratio")]
     public int AspectRatio { get; set; }
 
-    public bool SubtitleEnabled { get; set; } = true;
-    public bool ThumbnailEnabled { get; set; } = true;
+    [Display(Name = "Subtitle Enabled")]
+    public bool SubtitleEnabled { get; set; }
 
-    [Range(1, 20)]
-    public int DailyVideoLimit { get; set; } = 3;
+    [Display(Name = "Thumbnail Enabled")]
+    public bool ThumbnailEnabled { get; set; }
 
-    [Required, StringLength(100)]
-    public string PreferredHoursCsv { get; set; } = "09,14,20";
+    [Display(Name = "Daily Video Limit")]
+    public int DailyVideoLimit { get; set; }
 
-    [Required, StringLength(1000)]
-    public string TopicPrompt { get; set; } = string.Empty;
+    [Display(Name = "Preferred Hours CSV")]
+    public string? PreferredHoursCsv { get; set; }
 
-    [StringLength(500)]
+    [Display(Name = "Topic Prompt")]
+    public string? TopicPrompt { get; set; }
+
+    [Display(Name = "Hook Template")]
     public string? HookTemplate { get; set; }
 
-    [StringLength(500)]
+    [Display(Name = "Viral Pattern Template")]
     public string? ViralPatternTemplate { get; set; }
 
+    [Display(Name = "Auto Publish YouTube")]
     public bool AutoPublishYouTube { get; set; }
 
-    [StringLength(500)]
+    [Display(Name = "Trend Keywords CSV")]
     public string? TrendKeywordsCsv { get; set; }
 
-    [StringLength(1000)]
+    [Display(Name = "Seed Topics CSV")]
     public string? SeedTopicsCsv { get; set; }
 
-    [Required, StringLength(30)]
-    public string GrowthMode { get; set; } = "balanced";
+    [Display(Name = "Growth Mode")]
+    public string? GrowthMode { get; set; }
 
-    [Range(1, 10)]
-    public int TitleTestVariants { get; set; } = 3;
+    [Display(Name = "Title Test Variants")]
+    public int TitleTestVariants { get; set; }
 
-    [Range(0, 100)]
-    public decimal MinSuccessScore { get; set; } = 55;
-
-    public UpsertAutomationProfileRequest ToRequest()
-    {
-        return new UpsertAutomationProfileRequest
-        {
-            Name = Name,
-            IsActive = IsActive,
-            ProjectId = ProjectId,
-            LanguageCode = LanguageCode,
-            PlatformType = PlatformType,
-            ToneType = ToneType,
-            DurationTargetSec = DurationTargetSec,
-            AspectRatio = AspectRatio,
-            SubtitleEnabled = SubtitleEnabled,
-            ThumbnailEnabled = ThumbnailEnabled,
-            DailyVideoLimit = DailyVideoLimit,
-            PreferredHoursCsv = PreferredHoursCsv,
-            TopicPrompt = TopicPrompt,
-            HookTemplate = HookTemplate,
-            ViralPatternTemplate = ViralPatternTemplate,
-            AutoPublishYouTube = AutoPublishYouTube,
-            TrendKeywordsCsv = TrendKeywordsCsv,
-            SeedTopicsCsv = SeedTopicsCsv,
-            GrowthMode = GrowthMode,
-            TitleTestVariants = TitleTestVariants,
-            MinSuccessScore = MinSuccessScore
-        };
-    }
-
-    public static AutomationProfileEditViewModel FromEntity(Hgerman.ContentStudio.Domain.Entities.AutomationProfile entity)
-    {
-        return new AutomationProfileEditViewModel
-        {
-            AutomationProfileId = entity.AutomationProfileId,
-            Name = entity.Name,
-            IsActive = entity.IsActive,
-            ProjectId = entity.ProjectId,
-            LanguageCode = entity.LanguageCode,
-            PlatformType = entity.PlatformType,
-            ToneType = entity.ToneType,
-            DurationTargetSec = entity.DurationTargetSec,
-            AspectRatio = entity.AspectRatio,
-            SubtitleEnabled = entity.SubtitleEnabled,
-            ThumbnailEnabled = entity.ThumbnailEnabled,
-            DailyVideoLimit = entity.DailyVideoLimit,
-            PreferredHoursCsv = entity.PreferredHoursCsv,
-            TopicPrompt = entity.TopicPrompt,
-            HookTemplate = entity.HookTemplate,
-            ViralPatternTemplate = entity.ViralPatternTemplate,
-            AutoPublishYouTube = entity.AutoPublishYouTube,
-            TrendKeywordsCsv = entity.TrendKeywordsCsv,
-            SeedTopicsCsv = entity.SeedTopicsCsv,
-            GrowthMode = entity.GrowthMode,
-            TitleTestVariants = entity.TitleTestVariants,
-            MinSuccessScore = entity.MinSuccessScore
-        };
-    }
+    [Display(Name = "Min Success Score")]
+    public decimal MinSuccessScore { get; set; }
 }

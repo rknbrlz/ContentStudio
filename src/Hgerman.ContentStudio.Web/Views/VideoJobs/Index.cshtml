@@ -1,94 +1,108 @@
-﻿@model IReadOnlyList<VideoJobListItemDto>
+﻿@model IReadOnlyList<Hgerman.ContentStudio.Shared.DTOs.VideoJobListItemDto>
+
 @{
     ViewData["Title"] = "Video Jobs";
 }
 
-@if (TempData["SuccessMessage"] is string successMessage && !string.IsNullOrWhiteSpace(successMessage))
-{
-    <div class="alert alert-success shadow-sm border-0" role="alert">
-        @successMessage
-    </div>
-}
-
-<div class="card shadow-sm border-0">
-    <div class="card-body">
-        <div class="d-flex justify-content-between align-items-center mb-3 flex-wrap gap-2">
-            <h5 class="mb-0">All Jobs</h5>
-
-            <div class="d-flex gap-2">
-                <form asp-action="RunAutomationNow" method="post" class="m-0">
-                    @Html.AntiForgeryToken()
-                    <button type="submit" class="btn btn-success">⚡ Run Auto Now</button>
-                </form>
-
-                <a asp-action="Create" class="btn btn-dark">New Job</a>
-            </div>
+<div class="container-fluid">
+    <div class="d-flex justify-content-between align-items-start mb-4">
+        <div>
+            <h1 class="mb-1">Video Jobs</h1>
+            <div class="text-muted">Manage and monitor generated videos.</div>
         </div>
 
-        <div class="table-responsive">
-            <table class="table table-hover align-middle">
-                <thead>
-                    <tr>
-                        <th>Job No</th>
-                        <th>Title</th>
-                        <th>Profile</th>
-                        <th>Language</th>
-                        <th>Platform</th>
-                        <th>Status</th>
-                        <th>Step</th>
-                        <th>Created</th>
-                        <th></th>
-                    </tr>
-                </thead>
-                <tbody>
-                    @foreach (var item in Model)
-                    {
-                        <tr>
-                            <td>@item.JobNo</td>
-                            <td>
-                                @if (!string.IsNullOrWhiteSpace(item.JobNo) && item.JobNo.StartsWith("AUTO-"))
-                                {
-                                    <span class="badge rounded-pill text-bg-success me-2">AUTO</span>
-                                }
+        <div class="d-flex gap-2">
+            <a asp-action="Create" class="btn btn-primary">
+                + New Video Job
+            </a>
 
-                                @if (item.IsPublished)
-                                {
-                                    <span class="badge rounded-pill text-bg-primary me-2">PUBLISHED</span>
-                                }
+            <form asp-controller="VideoJobs"
+                  asp-action="RunAutomationNow"
+                  method="post"
+                  class="d-inline">
+                @Html.AntiForgeryToken()
+                <button type="submit" class="btn btn-success">
+                    ▶ Run Automation Now
+                </button>
+            </form>
+        </div>
+    </div>
 
-                                @item.Title
-                            </td>
-                            <td>
-                                @if (item.AutomationProfileId.HasValue)
-                                {
-                                    <a asp-controller="AutomationProfiles"
-                                       asp-action="Details"
-                                       asp-route-id="@item.AutomationProfileId.Value"
-                                       class="badge text-bg-dark text-decoration-none">
-                                        @item.ProfileName
-                                    </a>
-                                }
-                                else
-                                {
-                                    <span class="badge text-bg-secondary">Manual</span>
-                                }
-                            </td>
-                            <td>@item.LanguageCode</td>
-                            <td>@item.PlatformType</td>
-                            <td>
-                                <span class="badge text-bg-secondary">@item.Status</span>
-                            </td>
-                            <td>@item.Step</td>
-                            <td>@item.CreatedDate.ToString("yyyy-MM-dd HH:mm")</td>
-                            <td>
-                                <a asp-action="Details" asp-route-id="@item.VideoJobId" class="btn btn-sm btn-outline-dark">
-                                    Open
-                                </a>
-                            </td>
-                        </tr>
-                    }
-                </tbody>
-            </table>
+    <div class="card shadow-sm">
+        <div class="card-body p-0">
+            @if (Model != null && Model.Any())
+            {
+                <div class="table-responsive">
+                    <table class="table table-hover align-middle mb-0">
+                        <thead class="table-light">
+                            <tr>
+                                <th>ID</th>
+                                <th>Job No</th>
+                                <th>Title</th>
+                                <th>Profile</th>
+                                <th>Platform</th>
+                                <th>Language</th>
+                                <th>Status</th>
+                                <th>Step</th>
+                                <th>Published</th>
+                                <th>Created</th>
+                                <th class="text-end">Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @foreach (var job in Model.OrderByDescending(x => x.VideoJobId))
+                            {
+                                <tr>
+                                    <td>@job.VideoJobId</td>
+                                    <td>@job.JobNo</td>
+                                    <td class="fw-semibold">@job.Title</td>
+                                    <td>@job.ProfileName</td>
+                                    <td>@job.PlatformType</td>
+                                    <td>@job.LanguageCode</td>
+                                    <td>
+                                        @{
+                                            var badgeClass = job.Status switch
+                                            {
+                                                "Completed" => "text-bg-success",
+                                                "Failed" => "text-bg-danger",
+                                                "Processing" => "text-bg-primary",
+                                                "Queued" => "text-bg-warning",
+                                                _ => "text-bg-secondary"
+                                            };
+                                        }
+                                        <span class="badge @badgeClass">@job.Status</span>
+                                    </td>
+                                    <td>@job.Step</td>
+                                    <td>
+                                        @if (job.IsPublished)
+                                        {
+                                            <span class="badge text-bg-success">Yes</span>
+                                        }
+                                        else
+                                        {
+                                            <span class="badge text-bg-secondary">No</span>
+                                        }
+                                    </td>
+                                    <td>@job.CreatedDate.ToLocalTime().ToString("yyyy-MM-dd HH:mm")</td>
+                                    <td class="text-end">
+                                        <a asp-action="Details"
+                                           asp-route-id="@job.VideoJobId"
+                                           class="btn btn-sm btn-outline-dark">
+                                            Open
+                                        </a>
+                                    </td>
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                </div>
+            }
+            else
+            {
+                <div class="p-3 text-muted">
+                    No video jobs found.
+                </div>
+            }
         </div>
     </div>
 </div>

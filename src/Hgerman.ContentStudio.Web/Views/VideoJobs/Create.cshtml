@@ -1,4 +1,5 @@
-﻿@model Hgerman.ContentStudio.Shared.DTOs.CreateVideoJobRequest
+﻿@model Hgerman.ContentStudio.Web.Models.CreateVideoJobViewModel
+@using Hgerman.ContentStudio.Domain.Enums
 
 @{
     ViewData["Title"] = "Create Video Job";
@@ -17,7 +18,9 @@
             <strong>Job Details</strong>
         </div>
         <div class="card-body">
-            <form asp-action="Create" method="post">
+            <form asp-action="Create" method="post" enctype="multipart/form-data">
+                @Html.AntiForgeryToken()
+
                 <div asp-validation-summary="ModelOnly" class="text-danger mb-3"></div>
 
                 <div class="row g-3">
@@ -33,10 +36,16 @@
                         <span asp-validation-for="Title" class="text-danger"></span>
                     </div>
 
-                    <div class="col-12">
+                    <div class="col-md-6">
                         <label asp-for="Topic" class="form-label"></label>
                         <input asp-for="Topic" class="form-control" />
                         <span asp-validation-for="Topic" class="text-danger"></span>
+                    </div>
+
+                    <div class="col-md-6">
+                        <label asp-for="SourcePrompt" class="form-label"></label>
+                        <input asp-for="SourcePrompt" class="form-control" />
+                        <span asp-validation-for="SourcePrompt" class="text-danger"></span>
                     </div>
 
                     <div class="col-md-3">
@@ -46,9 +55,55 @@
                     </div>
 
                     <div class="col-md-3">
+                        <label asp-for="PlatformType" class="form-label"></label>
+                        <select asp-for="PlatformType" class="form-select"
+                                asp-items="Html.GetEnumSelectList<PlatformType>()"></select>
+                        <span asp-validation-for="PlatformType" class="text-danger"></span>
+                    </div>
+
+                    <div class="col-md-3">
+                        <label asp-for="ToneType" class="form-label"></label>
+                        <select asp-for="ToneType" class="form-select"
+                                asp-items="Html.GetEnumSelectList<ToneType>()"></select>
+                        <span asp-validation-for="ToneType" class="text-danger"></span>
+                    </div>
+
+                    <div class="col-md-3">
+                        <label asp-for="AspectRatio" class="form-label"></label>
+                        <select asp-for="AspectRatio" class="form-select"
+                                asp-items="Html.GetEnumSelectList<AspectRatioType>()"></select>
+                        <span asp-validation-for="AspectRatio" class="text-danger"></span>
+                    </div>
+
+                    <div class="col-md-3">
                         <label asp-for="DurationTargetSec" class="form-label"></label>
                         <input asp-for="DurationTargetSec" class="form-control" />
                         <span asp-validation-for="DurationTargetSec" class="text-danger"></span>
+                    </div>
+
+                    <div class="col-md-3">
+                        <label asp-for="VoiceProvider" class="form-label"></label>
+                        <input asp-for="VoiceProvider" class="form-control" />
+                        <span asp-validation-for="VoiceProvider" class="text-danger"></span>
+                    </div>
+
+                    <div class="col-md-3">
+                        <label asp-for="VoiceName" class="form-label"></label>
+                        <input asp-for="VoiceName" class="form-control" />
+                        <span asp-validation-for="VoiceName" class="text-danger"></span>
+                    </div>
+
+                    <div class="col-md-3">
+                        <label asp-for="InputMode" class="form-label"></label>
+                        <select asp-for="InputMode" class="form-select"
+                                asp-items="Html.GetEnumSelectList<InputModeType>()"></select>
+                        <span asp-validation-for="InputMode" class="text-danger"></span>
+                    </div>
+
+                    <div class="col-12">
+                        <label asp-for="SourceImage" class="form-label"></label>
+                        <input asp-for="SourceImage" type="file" class="form-control" accept="image/*" />
+                        <span asp-validation-for="SourceImage" class="text-danger"></span>
                     </div>
 
                     <div class="col-md-3 d-flex align-items-end">

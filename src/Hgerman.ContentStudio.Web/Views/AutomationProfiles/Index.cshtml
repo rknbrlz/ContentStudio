@@ -1,4 +1,4 @@
-﻿@model IReadOnlyList<Hgerman.ContentStudio.Domain.Entities.AutomationProfile>
+﻿@model IReadOnlyList<Hgerman.ContentStudio.Shared.DTOs.AutomationProfileListItemDto>
 
 @{
     ViewData["Title"] = "Automation Profiles";
@@ -32,7 +32,7 @@
                                 <th>Daily Limit</th>
                                 <th>Hours</th>
                                 <th>Last Run</th>
-                                <th></th>
+                                <th class="text-end">Actions</th>
                             </tr>
                         </thead>
                         <tbody>
@@ -40,7 +40,7 @@
                             {
                                 <tr>
                                     <td>@item.AutomationProfileId</td>
-                                    <td>@item.Name</td>
+                                    <td class="fw-semibold">@item.Name</td>
                                     <td>
                                         @if (item.IsActive)
                                         {
@@ -60,8 +60,8 @@
                                                                     ? item.LastRunAtUtc.Value.ToLocalTime().ToString("yyyy-MM-dd HH:mm")
                                                                     : "-")
                             </td>
-                            <td>
-                                <div class="d-flex gap-1">
+                            <td class="text-end">
+                                <div class="d-inline-flex gap-1">
                                     <a asp-action="Details"
                                        asp-route-id="@item.AutomationProfileId"
                                        class="btn btn-sm btn-outline-dark">
@@ -73,10 +73,35 @@
                                                class="btn btn-sm btn-outline-primary">
                                                 Edit
                                             </a>
+
+                                    @if (item.IsActive)
+                                            {
+                                                <form asp-action="Disable"
+                                                      asp-route-id="@item.AutomationProfileId"
+                                                      method="post"
+                                                      class="d-inline">
+                                                    @Html.AntiForgeryToken()
+                                                    <button type="submit" class="btn btn-sm btn-outline-warning">
+                                                        Disable
+                                                    </button>
+                                                </form>
+                                            }
+                                            else
+                                            {
+                                                <form asp-action="Enable"
+                                                      asp-route-id="@item.AutomationProfileId"
+                                                      method="post"
+                                                      class="d-inline">
+                                                    @Html.AntiForgeryToken()
+                                                    <button type="submit" class="btn btn-sm btn-outline-success">
+                                                        Enable
+                                                    </button>
+                                                </form>
+                                            }
                                         </div>
                                     </td>
                                 </tr>
-                                                }
+                            }
                         </tbody>
                     </table>
                 </div>

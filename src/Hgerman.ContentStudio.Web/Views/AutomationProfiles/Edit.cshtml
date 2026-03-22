@@ -1,113 +1,170 @@
-﻿@model Hgerman.ContentStudio.Domain.Entities.AutomationProfile
+﻿@model Hgerman.ContentStudio.Web.Models.AutomationProfileEditViewModel
 
 @{
-    ViewData["Title"] = "Edit Automation Profile";
+    var isEdit = Model.AutomationProfileId.HasValue && Model.AutomationProfileId.Value > 0;
+    ViewData["Title"] = isEdit ? "Edit Automation Profile" : "Create Automation Profile";
 }
 
 <div class="container-fluid">
-    <h1 class="mb-4">Edit Automation Profile</h1>
+    <div class="d-flex justify-content-between align-items-start mb-4">
+        <div>
+            <h1 class="mb-1">@(isEdit ? "Edit Automation Profile" : "Create Automation Profile")</h1>
+            <div class="text-muted">Configure automated short-form video generation.</div>
+        </div>
+
+        <div>
+            <a asp-action="Index" class="btn btn-outline-secondary">Back</a>
+        </div>
+    </div>
 
     <div class="card shadow-sm">
         <div class="card-body">
-            <form asp-action="Edit" method="post">
+            <form asp-action="@(isEdit ? "Edit" : "Create")"
+                  asp-route-id="@(isEdit ? Model.AutomationProfileId : null)"
+                  method="post">
+                @Html.AntiForgeryToken()
+
                 <input type="hidden" asp-for="AutomationProfileId" />
+
                 <div asp-validation-summary="ModelOnly" class="text-danger mb-3"></div>
 
                 <div class="row g-3">
                     <div class="col-md-3">
                         <label asp-for="ProjectId" class="form-label"></label>
                         <input asp-for="ProjectId" class="form-control" />
+                        <span asp-validation-for="ProjectId" class="text-danger"></span>
                     </div>
 
-                    <div class="col-md-9">
+                    <div class="col-md-6">
                         <label asp-for="Name" class="form-label"></label>
                         <input asp-for="Name" class="form-control" />
+                        <span asp-validation-for="Name" class="text-danger"></span>
+                    </div>
+
+                    <div class="col-md-3 d-flex align-items-end">
+                        <div class="form-check">
+                            <input asp-for="IsActive" class="form-check-input" />
+                            <label asp-for="IsActive" class="form-check-label"></label>
+                        </div>
                     </div>
 
                     <div class="col-md-3">
                         <label asp-for="LanguageCode" class="form-label"></label>
                         <input asp-for="LanguageCode" class="form-control" />
+                        <span asp-validation-for="LanguageCode" class="text-danger"></span>
                     </div>
 
                     <div class="col-md-3">
-                        <label asp-for="GrowthMode" class="form-label"></label>
-                        <input asp-for="GrowthMode" class="form-control" />
+                        <label asp-for="PlatformType" class="form-label"></label>
+                        <select asp-for="PlatformType" asp-items="ViewBag.PlatformTypes" class="form-select"></select>
+                        <span asp-validation-for="PlatformType" class="text-danger"></span>
                     </div>
 
                     <div class="col-md-3">
-                        <label asp-for="DailyVideoLimit" class="form-label"></label>
-                        <input asp-for="DailyVideoLimit" class="form-control" />
+                        <label asp-for="ToneType" class="form-label"></label>
+                        <select asp-for="ToneType" asp-items="ViewBag.ToneTypes" class="form-select"></select>
+                        <span asp-validation-for="ToneType" class="text-danger"></span>
                     </div>
 
                     <div class="col-md-3">
-                        <label asp-for="PreferredHoursCsv" class="form-label"></label>
-                        <input asp-for="PreferredHoursCsv" class="form-control" />
+                        <label asp-for="AspectRatio" class="form-label"></label>
+                        <select asp-for="AspectRatio" asp-items="ViewBag.AspectRatios" class="form-select"></select>
+                        <span asp-validation-for="AspectRatio" class="text-danger"></span>
                     </div>
 
                     <div class="col-md-3">
                         <label asp-for="DurationTargetSec" class="form-label"></label>
                         <input asp-for="DurationTargetSec" class="form-control" />
+                        <span asp-validation-for="DurationTargetSec" class="text-danger"></span>
+                    </div>
+
+                    <div class="col-md-3">
+                        <label asp-for="DailyVideoLimit" class="form-label"></label>
+                        <input asp-for="DailyVideoLimit" class="form-control" />
+                        <span asp-validation-for="DailyVideoLimit" class="text-danger"></span>
+                    </div>
+
+                    <div class="col-md-3">
+                        <label asp-for="GrowthMode" class="form-label"></label>
+                        <select asp-for="GrowthMode" asp-items="ViewBag.GrowthModes" class="form-select"></select>
+                        <span asp-validation-for="GrowthMode" class="text-danger"></span>
                     </div>
 
                     <div class="col-md-3">
                         <label asp-for="TitleTestVariants" class="form-label"></label>
                         <input asp-for="TitleTestVariants" class="form-control" />
+                        <span asp-validation-for="TitleTestVariants" class="text-danger"></span>
                     </div>
 
                     <div class="col-md-3">
                         <label asp-for="MinSuccessScore" class="form-label"></label>
                         <input asp-for="MinSuccessScore" class="form-control" />
+                        <span asp-validation-for="MinSuccessScore" class="text-danger"></span>
                     </div>
 
-                    <div class="col-md-12">
+                    <div class="col-md-6">
+                        <label asp-for="PreferredHoursCsv" class="form-label"></label>
+                        <input asp-for="PreferredHoursCsv" class="form-control" placeholder="09,14,20" />
+                        <span asp-validation-for="PreferredHoursCsv" class="text-danger"></span>
+                    </div>
+
+                    <div class="col-md-3 d-flex align-items-end">
+                        <div class="form-check">
+                            <input asp-for="SubtitleEnabled" class="form-check-input" />
+                            <label asp-for="SubtitleEnabled" class="form-check-label"></label>
+                        </div>
+                    </div>
+
+                    <div class="col-md-3 d-flex align-items-end">
+                        <div class="form-check">
+                            <input asp-for="ThumbnailEnabled" class="form-check-input" />
+                            <label asp-for="ThumbnailEnabled" class="form-check-label"></label>
+                        </div>
+                    </div>
+
+                    <div class="col-md-3 d-flex align-items-end">
+                        <div class="form-check">
+                            <input asp-for="AutoPublishYouTube" class="form-check-input" />
+                            <label asp-for="AutoPublishYouTube" class="form-check-label"></label>
+                        </div>
+                    </div>
+
+                    <div class="col-12">
                         <label asp-for="TopicPrompt" class="form-label"></label>
-                        <textarea asp-for="TopicPrompt" class="form-control" rows="3"></textarea>
+                        <textarea asp-for="TopicPrompt" class="form-control" rows="4"></textarea>
+                        <span asp-validation-for="TopicPrompt" class="text-danger"></span>
                     </div>
 
-                    <div class="col-md-12">
+                    <div class="col-md-6">
                         <label asp-for="HookTemplate" class="form-label"></label>
-                        <textarea asp-for="HookTemplate" class="form-control" rows="2"></textarea>
+                        <textarea asp-for="HookTemplate" class="form-control" rows="3"></textarea>
+                        <span asp-validation-for="HookTemplate" class="text-danger"></span>
                     </div>
 
-                    <div class="col-md-12">
+                    <div class="col-md-6">
                         <label asp-for="ViralPatternTemplate" class="form-label"></label>
-                        <textarea asp-for="ViralPatternTemplate" class="form-control" rows="2"></textarea>
+                        <textarea asp-for="ViralPatternTemplate" class="form-control" rows="3"></textarea>
+                        <span asp-validation-for="ViralPatternTemplate" class="text-danger"></span>
                     </div>
 
-                    <div class="col-md-12">
-                        <label asp-for="SeedTopicsCsv" class="form-label"></label>
-                        <textarea asp-for="SeedTopicsCsv" class="form-control" rows="2"></textarea>
-                    </div>
-
-                    <div class="col-md-12">
+                    <div class="col-md-6">
                         <label asp-for="TrendKeywordsCsv" class="form-label"></label>
                         <textarea asp-for="TrendKeywordsCsv" class="form-control" rows="2"></textarea>
+                        <span asp-validation-for="TrendKeywordsCsv" class="text-danger"></span>
                     </div>
 
-                    <div class="col-md-3 form-check ms-3">
-                        <input asp-for="IsActive" class="form-check-input" />
-                        <label asp-for="IsActive" class="form-check-label"></label>
-                    </div>
-
-                    <div class="col-md-3 form-check ms-3">
-                        <input asp-for="SubtitleEnabled" class="form-check-input" />
-                        <label asp-for="SubtitleEnabled" class="form-check-label"></label>
-                    </div>
-
-                    <div class="col-md-3 form-check ms-3">
-                        <input asp-for="ThumbnailEnabled" class="form-check-input" />
-                        <label asp-for="ThumbnailEnabled" class="form-check-label"></label>
-                    </div>
-
-                    <div class="col-md-3 form-check ms-3">
-                        <input asp-for="AutoPublishYouTube" class="form-check-input" />
-                        <label asp-for="AutoPublishYouTube" class="form-check-label"></label>
+                    <div class="col-md-6">
+                        <label asp-for="SeedTopicsCsv" class="form-label"></label>
+                        <textarea asp-for="SeedTopicsCsv" class="form-control" rows="2"></textarea>
+                        <span asp-validation-for="SeedTopicsCsv" class="text-danger"></span>
                     </div>
                 </div>
 
                 <div class="mt-4 d-flex gap-2">
-                    <button type="submit" class="btn btn-primary">Save</button>
-                    <a asp-action="Index" class="btn btn-outline-secondary">Back</a>
+                    <button type="submit" class="btn btn-primary">
+                        @(isEdit ? "Save Changes" : "Create Profile")
+                    </button>
+                    <a asp-action="Index" class="btn btn-outline-secondary">Cancel</a>
                 </div>
             </form>
         </div>

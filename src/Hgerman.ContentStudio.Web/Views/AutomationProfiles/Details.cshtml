@@ -1,185 +1,143 @@
-﻿@model Hgerman.ContentStudio.Domain.Entities.VideoJob
+﻿@model Hgerman.ContentStudio.Domain.Entities.AutomationProfile
 
 @{
-    ViewData["Title"] = $"Video Job #{Model.VideoJobId}";
-    var orderedScenes = Model.Scenes?.OrderBy(x => x.SceneNo).ToList()
-        ?? new List<Hgerman.ContentStudio.Domain.Entities.VideoScene>();
-
-    var orderedAssets = Model.Assets?.OrderByDescending(x => x.AssetId).ToList()
-        ?? new List<Hgerman.ContentStudio.Domain.Entities.Asset>();
-
-    var finalVideoAsset = orderedAssets
-        .FirstOrDefault(x =>
-            !string.IsNullOrWhiteSpace(x.FileName) &&
-            x.FileName.EndsWith(".mp4", StringComparison.OrdinalIgnoreCase));
-
-    string progressBarClass = Model.Status.ToString() switch
-    {
-        "Completed" => "bg-success",
-        "Failed" => "bg-danger",
-        _ => "bg-primary"
-    };
+    ViewData["Title"] = $"Automation Profile #{Model.AutomationProfileId}";
+    var jobs = Model.VideoJobs?
+        .OrderByDescending(x => x.VideoJobId)
+        .ToList() ?? new List<Hgerman.ContentStudio.Domain.Entities.VideoJob>();
 }
 
 <div class="container-fluid">
     <div class="d-flex justify-content-between align-items-start mb-4">
         <div>
-            <h1 class="mb-1">Video Job #@Model.VideoJobId</h1>
-            <div class="text-muted">@Model.Title</div>
+            <h1 class="mb-1">@Model.Name</h1>
+            <div class="text-muted">Automation profile details and recent generated jobs.</div>
         </div>
 
-        <div class="text-end">
-            <div><strong>Status:</strong> @Model.Status</div>
-            <div><strong>Step:</strong> @Model.CurrentStep</div>
-            <div><strong>Progress:</strong> @Model.ProgressPercent%</div>
-        </div>
-    </div>
+        <div class="d-flex gap-2">
+            <a asp-action="Edit"
+               asp-route-id="@Model.AutomationProfileId"
+               class="btn btn-outline-primary">
+                Edit
+            </a>
 
-    <div class="card shadow-sm mb-4">
-        <div class="card-body">
-            <div class="progress" style="height:22px;">
-                <div class="progress-bar progress-bar-striped progress-bar-animated @progressBarClass"
-                     role="progressbar"
-                     style="width:@Model.ProgressPercent%;"
-                     aria-valuenow="@Model.ProgressPercent"
-                     aria-valuemin="0"
-                     aria-valuemax="100">
-                    @Model.ProgressPercent%
-                </div>
-            </div>
-
-            <div class="mt-2 text-muted small">
-                Last update: @(Model.UpdatedDate.HasValue
-                                ? Model.UpdatedDate.Value.ToLocalTime().ToString("yyyy-MM-dd HH:mm:ss")
-                                : "-")
-            </div>
+            <a asp-action="Index"
+               class="btn btn-outline-secondary">
+                Back
+            </a>
         </div>
     </div>
 
     <div class="row g-4 mb-4">
+        <div class="col-md-3">
+            <div class="card shadow-sm h-100">
+                <div class="card-body">
+                    <div class="text-muted small">Profile ID</div>
+                    <div class="fs-4 fw-semibold">@Model.AutomationProfileId</div>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-md-3">
+            <div class="card shadow-sm h-100">
+                <div class="card-body">
+                    <div class="text-muted small">Status</div>
+                    <div class="fs-4 fw-semibold">
+                        @if (Model.IsActive)
+                        {
+                            <span class="badge text-bg-success">Active</span>
+                        }
+                        else
+                        {
+                            <span class="badge text-bg-secondary">Passive</span>
+                        }
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-md-3">
+            <div class="card shadow-sm h-100">
+                <div class="card-body">
+                    <div class="text-muted small">Language</div>
+                    <div class="fs-4 fw-semibold">@Model.LanguageCode</div>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-md-3">
+            <div class="card shadow-sm h-100">
+                <div class="card-body">
+                    <div class="text-muted small">Daily Limit</div>
+                    <div class="fs-4 fw-semibold">@Model.DailyVideoLimit</div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="row g-4">
         <div class="col-lg-6">
             <div class="card shadow-sm h-100">
                 <div class="card-header">
-                    <strong>Overview</strong>
+                    <strong>Profile Settings</strong>
                 </div>
                 <div class="card-body">
-                    <div class="row mb-2">
-                        <div class="col-sm-4 fw-semibold">Job No</div>
-                        <div class="col-sm-8">@Model.JobNo</div>
-                    </div>
+                    <dl class="row mb-0">
+                        <dt class="col-sm-5">Project Id</dt>
+                        <dd class="col-sm-7">@Model.ProjectId</dd>
 
-                    <div class="row mb-2">
-                        <div class="col-sm-4 fw-semibold">Profile</div>
-                        <div class="col-sm-8">
-                            @if (Model.AutomationProfileId.HasValue && Model.AutomationProfile != null)
-                            {
-                                <a asp-controller="AutomationProfiles"
-                                   asp-action="Details"
-                                   asp-route-id="@Model.AutomationProfileId.Value"
-                                   class="badge text-bg-primary text-decoration-none">
-                                    @Model.AutomationProfile.Name
-                                </a>
-                            }
-                            else
-                            {
-                                <span class="badge text-bg-secondary">Manual</span>
-                            }
-                        </div>
-                    </div>
+                        <dt class="col-sm-5">Platform Type</dt>
+                        <dd class="col-sm-7">@Model.PlatformType</dd>
 
-                    <div class="row mb-2">
-                        <div class="col-sm-4 fw-semibold">Origin</div>
-                        <div class="col-sm-8">
-                            @if (Model.AutomationProfileId.HasValue)
-                            {
-                                <span class="badge text-bg-success">Automation</span>
-                            }
-                            else
-                            {
-                                <span class="badge text-bg-secondary">Manual</span>
-                            }
-                        </div>
-                    </div>
+                        <dt class="col-sm-5">Tone Type</dt>
+                        <dd class="col-sm-7">@Model.ToneType</dd>
 
-                    <div class="row mb-2">
-                        <div class="col-sm-4 fw-semibold">Language</div>
-                        <div class="col-sm-8">@Model.LanguageCode</div>
-                    </div>
+                        <dt class="col-sm-5">Duration Target</dt>
+                        <dd class="col-sm-7">@Model.DurationTargetSec sec</dd>
 
-                    <div class="row mb-2">
-                        <div class="col-sm-4 fw-semibold">Platform</div>
-                        <div class="col-sm-8">@Model.PlatformType</div>
-                    </div>
+                        <dt class="col-sm-5">Aspect Ratio</dt>
+                        <dd class="col-sm-7">@Model.AspectRatio</dd>
 
-                    <div class="row mb-2">
-                        <div class="col-sm-4 fw-semibold">Tone</div>
-                        <div class="col-sm-8">@Model.ToneType</div>
-                    </div>
+                        <dt class="col-sm-5">Subtitle Enabled</dt>
+                        <dd class="col-sm-7">@(Model.SubtitleEnabled ? "Yes" : "No")</dd>
 
-                    <div class="row mb-2">
-                        <div class="col-sm-4 fw-semibold">Duration Target</div>
-                        <div class="col-sm-8">@Model.DurationTargetSec sec</div>
-                    </div>
+                        <dt class="col-sm-5">Thumbnail Enabled</dt>
+                        <dd class="col-sm-7">@(Model.ThumbnailEnabled ? "Yes" : "No")</dd>
 
-                    <div class="row mb-2">
-                        <div class="col-sm-4 fw-semibold">Scenes</div>
-                        <div class="col-sm-8">@orderedScenes.Count</div>
-                    </div>
+                        <dt class="col-sm-5">Auto Publish YouTube</dt>
+                        <dd class="col-sm-7">@(Model.AutoPublishYouTube ? "Yes" : "No")</dd>
 
-                    <div class="row mb-2">
-                        <div class="col-sm-4 fw-semibold">Assets</div>
-                        <div class="col-sm-8">@orderedAssets.Count</div>
-                    </div>
+                        <dt class="col-sm-5">Growth Mode</dt>
+                        <dd class="col-sm-7">@Model.GrowthMode</dd>
 
-                    <div class="row mb-2">
-                        <div class="col-sm-4 fw-semibold">Subtitle</div>
-                        <div class="col-sm-8">@(Model.SubtitleEnabled ? "Enabled" : "Disabled")</div>
-                    </div>
+                        <dt class="col-sm-5">Title Test Variants</dt>
+                        <dd class="col-sm-7">@Model.TitleTestVariants</dd>
 
-                    <div class="row mb-2">
-                        <div class="col-sm-4 fw-semibold">Published</div>
-                        <div class="col-sm-8">@(Model.IsPublished ? "Yes" : "No")</div>
-                    </div>
+                        <dt class="col-sm-5">Min Success Score</dt>
+                        <dd class="col-sm-7">@Model.MinSuccessScore</dd>
 
-                    @if (finalVideoAsset != null)
-                    {
-                        <div class="row mb-2">
-                            <div class="col-sm-4 fw-semibold">Output File</div>
-                            <div class="col-sm-8">@finalVideoAsset.FileName</div>
-                        </div>
-                    }
+                        <dt class="col-sm-5">Preferred Hours</dt>
+                        <dd class="col-sm-7">@(!string.IsNullOrWhiteSpace(Model.PreferredHoursCsv) ? Model.PreferredHoursCsv : "-")</dd>
 
-                    @if (!string.IsNullOrWhiteSpace(Model.Topic))
-                    {
-                        <div class="row mb-2">
-                            <div class="col-sm-4 fw-semibold">Topic</div>
-                            <div class="col-sm-8">@Model.Topic</div>
-                        </div>
-                    }
-
-                    @if (!string.IsNullOrWhiteSpace(Model.PublishedUrl))
-                    {
-                        <div class="row mb-2">
-                            <div class="col-sm-4 fw-semibold">Published Url</div>
-                            <div class="col-sm-8 text-break">
-                                <a href="@Model.PublishedUrl" target="_blank">@Model.PublishedUrl</a>
-                            </div>
-                        </div>
-                    }
-
-                    <div class="row mb-2">
-                        <div class="col-sm-4 fw-semibold">Created</div>
-                        <div class="col-sm-8">@Model.CreatedDate.ToLocalTime().ToString("yyyy-MM-dd HH:mm:ss")</div>
-                    </div>
-
-                    <div class="row mb-0">
-                        <div class="col-sm-4 fw-semibold">Updated</div>
-                        <div class="col-sm-8">
-                            @(Model.UpdatedDate.HasValue
-                                                        ? Model.UpdatedDate.Value.ToLocalTime().ToString("yyyy-MM-dd HH:mm:ss")
+                        <dt class="col-sm-5">Last Run</dt>
+                        <dd class="col-sm-7">
+                            @(Model.LastRunAtUtc.HasValue
+                                                        ? Model.LastRunAtUtc.Value.ToLocalTime().ToString("yyyy-MM-dd HH:mm")
                                                         : "-")
-                        </div>
-                    </div>
+                        </dd>
+
+                        <dt class="col-sm-5">Created</dt>
+                        <dd class="col-sm-7">
+                            @Model.CreatedDate.ToLocalTime().ToString("yyyy-MM-dd HH:mm")
+                        </dd>
+
+                        <dt class="col-sm-5">Updated</dt>
+                        <dd class="col-sm-7">
+                            @(Model.UpdatedDate.HasValue
+                                                        ? Model.UpdatedDate.Value.ToLocalTime().ToString("yyyy-MM-dd HH:mm")
+                                                        : "-")
+                        </dd>
+                    </dl>
                 </div>
             </div>
         </div>
@@ -187,100 +145,100 @@
         <div class="col-lg-6">
             <div class="card shadow-sm h-100">
                 <div class="card-header">
-                    <strong>Source</strong>
+                    <strong>Prompt Configuration</strong>
                 </div>
                 <div class="card-body">
-                    @if (Model.PrimarySourceAsset != null)
-                    {
-                        <div class="mb-2">
-                            <strong>Primary Source:</strong> @Model.PrimarySourceAsset.FileName
+                    <div class="mb-3">
+                        <label class="form-label fw-semibold">Topic Prompt</label>
+                        <div class="border rounded p-3 bg-light">
+                            @(!string.IsNullOrWhiteSpace(Model.TopicPrompt) ? Model.TopicPrompt : "-")
                         </div>
+                    </div>
 
-                        <div class="text-muted small text-break">
-                            @Model.PrimarySourceAsset.BlobPath
+                    <div class="mb-3">
+                        <label class="form-label fw-semibold">Hook Template</label>
+                        <div class="border rounded p-3 bg-light">
+                            @(!string.IsNullOrWhiteSpace(Model.HookTemplate) ? Model.HookTemplate : "-")
                         </div>
-                    }
-                    else
-                    {
-                        <div class="text-muted">No source asset.</div>
-                    }
+                    </div>
 
-                    @if (!string.IsNullOrWhiteSpace(Model.SourcePrompt))
-                    {
-                        <hr />
-                        <div class="fw-semibold mb-2">Source Prompt</div>
-                        <div class="small" style="white-space:pre-wrap;">@Model.SourcePrompt</div>
-                    }
+                    <div class="mb-3">
+                        <label class="form-label fw-semibold">Viral Pattern Template</label>
+                        <div class="border rounded p-3 bg-light">
+                            @(!string.IsNullOrWhiteSpace(Model.ViralPatternTemplate) ? Model.ViralPatternTemplate : "-")
+                        </div>
+                    </div>
+
+                    <div class="mb-3">
+                        <label class="form-label fw-semibold">Trend Keywords CSV</label>
+                        <div class="border rounded p-3 bg-light">
+                            @(!string.IsNullOrWhiteSpace(Model.TrendKeywordsCsv) ? Model.TrendKeywordsCsv : "-")
+                        </div>
+                    </div>
+
+                    <div class="mb-0">
+                        <label class="form-label fw-semibold">Seed Topics CSV</label>
+                        <div class="border rounded p-3 bg-light">
+                            @(!string.IsNullOrWhiteSpace(Model.SeedTopicsCsv) ? Model.SeedTopicsCsv : "-")
+                        </div>
+                    </div>
                 </div>
             </div>
         </div>
     </div>
 
-    <div class="card shadow-sm mb-4">
-        <div class="card-header">
-            <strong>Scenes</strong>
+    <div class="card shadow-sm mt-4">
+        <div class="card-header d-flex justify-content-between align-items-center">
+            <strong>Recent Video Jobs</strong>
+            <span class="text-muted small">@jobs.Count item(s)</span>
         </div>
-        <div class="card-body p-0">
-            @if (orderedScenes.Any())
-            {
-                <div class="table-responsive">
-                    <table class="table table-bordered table-hover align-middle mb-0">
-                        <thead class="table-light">
-                            <tr>
-                                <th style="width:70px;">#</th>
-                                <th>Text</th>
-                                <th>Prompt</th>
-                                <th style="width:120px;">Duration</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            @foreach (var scene in orderedScenes)
-                            {
-                                <tr>
-                                    <td>@scene.SceneNo</td>
-                                    <td style="white-space:pre-wrap;">@scene.SceneText</td>
-                                    <td style="white-space:pre-wrap;">@scene.ScenePrompt</td>
-                                    <td>@scene.DurationSecond</td>
-                                </tr>
-                            }
-                        </tbody>
-                    </table>
-                </div>
-            }
-            else
-            {
-                <div class="p-3 text-muted">No scenes found.</div>
-            }
-        </div>
-    </div>
 
-    <div class="card shadow-sm mb-4">
-        <div class="card-header">
-            <strong>Assets</strong>
-        </div>
         <div class="card-body p-0">
-            @if (orderedAssets.Any())
+            @if (jobs.Any())
             {
                 <div class="table-responsive">
-                    <table class="table table-bordered table-hover align-middle mb-0">
+                    <table class="table table-hover align-middle mb-0">
                         <thead class="table-light">
                             <tr>
-                                <th>ID</th>
-                                <th>File Name</th>
-                                <th>Type</th>
-                                <th>Mime Type</th>
-                                <th>Blob Path</th>
+                                <th>Job ID</th>
+                                <th>Title</th>
+                                <th>Status</th>
+                                <th>Topic</th>
+                                <th>Duration</th>
+                                <th>Created</th>
+                                <th class="text-end">Action</th>
                             </tr>
                         </thead>
                         <tbody>
-                            @foreach (var asset in orderedAssets)
+                            @foreach (var job in jobs)
                             {
                                 <tr>
-                                    <td>@asset.AssetId</td>
-                                    <td>@asset.FileName</td>
-                                    <td>@asset.AssetType</td>
-                                    <td>@asset.MimeType</td>
-                                    <td class="text-break">@asset.BlobPath</td>
+                                    <td>@job.VideoJobId</td>
+                                    <td class="fw-semibold">@job.Title</td>
+                                    <td>
+                                        @{
+                                            var badgeClass = job.Status.ToString() switch
+                                            {
+                                                "Completed" => "text-bg-success",
+                                                "Failed" => "text-bg-danger",
+                                                "Processing" => "text-bg-primary",
+                                                "Queued" => "text-bg-warning",
+                                                _ => "text-bg-secondary"
+                                            };
+                                        }
+                                        <span class="badge @badgeClass">@job.Status</span>
+                                    </td>
+                                    <td>@job.Topic</td>
+                                    <td>@job.DurationTargetSec sec</td>
+                                    <td>@job.CreatedDate.ToLocalTime().ToString("yyyy-MM-dd HH:mm")</td>
+                                    <td class="text-end">
+                                        <a asp-controller="VideoJobs"
+                                           asp-action="Details"
+                                           asp-route-id="@job.VideoJobId"
+                                           class="btn btn-sm btn-outline-dark">
+                                            Open
+                                        </a>
+                                    </td>
                                 </tr>
                             }
                         </tbody>
@@ -289,45 +247,7 @@
             }
             else
             {
-                <div class="p-3 text-muted">No assets found.</div>
-            }
-        </div>
-    </div>
-
-    <div class="card shadow-sm">
-        <div class="card-header">
-            <strong>Error Logs</strong>
-        </div>
-        <div class="card-body p-0">
-            @if (Model.ErrorLogs != null && Model.ErrorLogs.Any())
-            {
-                <div class="table-responsive">
-                    <table class="table table-bordered table-hover align-middle mb-0">
-                        <thead class="table-light">
-                            <tr>
-                                <th>Date</th>
-                                <th>Step</th>
-                                <th>Type</th>
-                                <th>Message</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            @foreach (var error in Model.ErrorLogs.OrderByDescending(x => x.CreatedDate))
-                            {
-                                <tr>
-                                    <td>@error.CreatedDate.ToLocalTime().ToString("yyyy-MM-dd HH:mm:ss")</td>
-                                    <td>@error.StepName</td>
-                                    <td>@error.ErrorType</td>
-                                    <td style="white-space:pre-wrap;">@error.ErrorMessage</td>
-                                </tr>
-                            }
-                        </tbody>
-                    </table>
-                </div>
-            }
-            else
-            {
-                <div class="p-3 text-muted">No errors.</div>
+                <div class="p-3 text-muted">No video jobs found for this automation profile.</div>
             }
         </div>
     </div>
