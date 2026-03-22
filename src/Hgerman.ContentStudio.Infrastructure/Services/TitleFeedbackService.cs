@@ -6,6 +6,8 @@ namespace Hgerman.ContentStudio.Infrastructure.Services;
 
 public sealed class TitleFeedbackService : ITitleFeedbackService
 {
+    private const int MaxTitleLength = 200;
+
     private readonly ContentStudioDbContext _db;
 
     public TitleFeedbackService(ContentStudioDbContext db)
@@ -40,12 +42,16 @@ public sealed class TitleFeedbackService : ITitleFeedbackService
         var results = new List<TitleVariantResult>();
         var count = Math.Max(1, profile.TitleTestVariants);
 
+        var safeTopic = NormalizeTopic(topic);
+
         for (var i = 1; i <= count; i++)
         {
             var hook = hooks[(i - 1) % hooks.Length];
             var pattern = patterns[(i - 1) % patterns.Length];
 
-            var candidate = BuildCandidateTitle(topic, hook, pattern, i);
+            var candidate = BuildCandidateTitle(safeTopic, hook, pattern, i);
+            candidate = TrimToLength(candidate, MaxTitleLength);
+
             var predicted = PredictScore(profile, hook, pattern, candidate);
 
             results.Add(new TitleVariantResult
@@ -73,15 +79,17 @@ public sealed class TitleFeedbackService : ITitleFeedbackService
     {
         foreach (var item in variants)
         {
+            var safeTitle = TrimToLength(item.Title, MaxTitleLength);
+
             _db.TitlePerformances.Add(new TitlePerformance
             {
                 VideoJobId = videoJobId,
                 AutomationProfileId = automationProfileId,
-                OriginalTitle = item.Title,
-                CandidateTitle = item.Title,
+                OriginalTitle = safeTitle,
+                CandidateTitle = safeTitle,
                 VariantNo = item.VariantNo,
-                HookType = item.HookType,
-                PatternType = item.PatternType,
+                HookType = TrimToLength(item.HookType, 100),
+                PatternType = TrimToLength(item.PatternType, 100),
                 PredictedScore = item.PredictedScore,
                 IsWinner = item.IsWinner,
                 CreatedDate = DateTime.UtcNow
@@ -91,17 +99,38 @@ public sealed class TitleFeedbackService : ITitleFeedbackService
         await _db.SaveChangesAsync(cancellationToken);
     }
 
+    private static string NormalizeTopic(string topic)
+    {
+        var safeTopic = string.IsNullOrWhiteSpace(topic)
+            ? "mindset"
+            : topic.Trim();
+
+        safeTopic = safeTopic
+            .Replace("|", " ")
+            .Replace("  ", " ");
+
+        if (safeTopic.Length > 60)
+        {
+            safeTopic = safeTopic[..60].Trim();
+            var lastSpace = safeTopic.LastIndexOf(' ');
+            if (lastSpace > 20)
+            {
+                safeTopic = safeTopic[..lastSpace].Trim();
+            }
+        }
+
+        return safeTopic;
+    }
+
     private static string BuildCandidateTitle(string topic, string hook, string pattern, int no)
     {
-        var safeTopic = string.IsNullOrWhiteSpace(topic) ? "mindset" : topic.Trim();
-
         return hook switch
         {
-            "warning" => $"Stop doing this if you want {safeTopic}",
-            "identity" => $"People with strong {safeTopic} never ignore this",
-            "curiosity" => $"The hidden reason your {safeTopic} keeps failing",
-            "challenge" => $"Try this 7-day {safeTopic} reset",
-            _ => $"This changed my {safeTopic} more than motivation ever did"
+            "warning" => $"Stop doing this if you want {topic}",
+            "identity" => $"People with strong {topic} never ignore this",
+            "curiosity" => $"The hidden reason your {topic} keeps failing",
+            "challenge" => $"Try this 7-day {topic} reset",
+            _ => $"This changed my {topic} more than motivation ever did"
         };
     }
 
@@ -137,5 +166,24 @@ public sealed class TitleFeedbackService : ITitleFeedbackService
             score += 6m;
 
         return Math.Max(1m, Math.Min(99m, Math.Round(score, 2)));
+    }
+
+    private static string TrimToLength(string? value, int maxLength)
+    {
+        if (string.IsNullOrWhiteSpace(value))
+            return string.Empty;
+
+        var cleaned = value.Trim();
+
+        if (cleaned.Length <= maxLength)
+            return cleaned;
+
+        var shortened = cleaned[..maxLength].Trim();
+        var lastSpace = shortened.LastIndexOf(' ');
+
+        if (lastSpace > 20)
+            shortened = shortened[..lastSpace].Trim();
+
+        return shortened;
     }
 }
