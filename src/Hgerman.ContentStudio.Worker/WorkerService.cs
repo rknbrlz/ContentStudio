@@ -23,11 +23,18 @@ public sealed class WorkerService : BackgroundService
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
         _logger.LogInformation("Hgerman Content Studio V2 worker started.");
+        _logger.LogInformation(
+            "Worker settings: IdleDelaySec={IdleDelaySec}, BusyDelaySec={BusyDelaySec}, ErrorDelaySec={ErrorDelaySec}",
+            _options.IdleDelaySec,
+            _options.BusyDelaySec,
+            _options.ErrorDelaySec);
 
         while (!stoppingToken.IsCancellationRequested)
         {
             try
             {
+                _logger.LogInformation("Worker loop tick...");
+
                 using var scope = _serviceProvider.CreateScope();
 
                 var automationService = scope.ServiceProvider.GetRequiredService<IAutomationService>();
@@ -45,7 +52,9 @@ public sealed class WorkerService : BackgroundService
                     _logger.LogWarning("Recovered {RecoveredCount} timed out/stale jobs.", recoveredCount);
                 }
 
+                _logger.LogInformation("Checking pending jobs...");
                 var processed = await processor.ProcessNextPendingJobAsync(stoppingToken);
+                _logger.LogInformation("Pending job processed: {Processed}", processed);
 
                 var autoPublishedCount = await automationService.PublishCompletedAutoJobsAsync(stoppingToken);
                 if (autoPublishedCount > 0)

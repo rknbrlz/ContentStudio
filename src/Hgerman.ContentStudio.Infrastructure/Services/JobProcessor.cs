@@ -65,6 +65,7 @@ public sealed class JobProcessor : IJobProcessor
             job.LockedBy = null;
             job.LockExpiresAt = null;
             job.LastHeartbeatAt = null;
+            job.ErrorMessage = null;
             job.UpdatedDate = utcNow;
         }
 
@@ -82,38 +83,26 @@ public sealed class JobProcessor : IJobProcessor
         var utcNow = DateTime.UtcNow;
         var workerLockId = Guid.NewGuid();
 
-        var job = await _db.VideoJobs
-            .OrderBy(x => x.VideoJobId)
-            .FirstOrDefaultAsync(
-                x => x.Status == VideoJobStatus.Queued,
-                cancellationToken);
-
-        if (job is null)
+        var claimedJobId = await TryClaimNextJobAsync(workerLockId, utcNow, cancellationToken);
+        if (!claimedJobId.HasValue)
         {
             return false;
         }
 
-        job.Status = VideoJobStatus.Processing;
-        job.CurrentStep = VideoPipelineStep.Queued;
-        job.WorkerLockId = workerLockId;
-        job.LockedBy = Environment.MachineName;
-        job.LockExpiresAt = utcNow.AddMinutes(LockMinutes);
-        job.LastHeartbeatAt = utcNow;
-        job.UpdatedDate = utcNow;
-        job.ErrorMessage = null;
-
-        await _db.SaveChangesAsync(cancellationToken);
-
         try
         {
-            await ProcessJobInternalAsync(job.VideoJobId, workerLockId, cancellationToken);
+            await ProcessJobInternalAsync(claimedJobId.Value, workerLockId, cancellationToken);
             return true;
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Job {VideoJobId} failed.", job.VideoJobId);
+            _logger.LogError(ex, "Job {VideoJobId} failed.", claimedJobId.Value);
 
-            var failedJob = await _db.VideoJobs.FirstAsync(x => x.VideoJobId == job.VideoJobId, cancellationToken);
+            var failedJob = await _db.VideoJobs
+                .FirstAsync(x => x.VideoJobId == claimedJobId.Value, cancellationToken);
+
+            var failedStep = failedJob.CurrentStep;
+
             failedJob.Status = VideoJobStatus.Failed;
             failedJob.CurrentStep = VideoPipelineStep.Failed;
             failedJob.ErrorMessage = ex.Message;
@@ -127,7 +116,7 @@ public sealed class JobProcessor : IJobProcessor
             _db.ErrorLogs.Add(new ErrorLog
             {
                 VideoJobId = failedJob.VideoJobId,
-                StepName = failedJob.CurrentStep.ToString(),
+                StepName = failedStep.ToString(),
                 ErrorType = ex.GetType().Name,
                 ErrorMessage = ex.ToString(),
                 CreatedDate = DateTime.UtcNow,
@@ -137,6 +126,46 @@ public sealed class JobProcessor : IJobProcessor
             await _db.SaveChangesAsync(cancellationToken);
             return true;
         }
+    }
+
+    private async Task<int?> TryClaimNextJobAsync(
+        Guid workerLockId,
+        DateTime utcNow,
+        CancellationToken cancellationToken)
+    {
+        await using var tx = await _db.Database.BeginTransactionAsync(cancellationToken);
+
+        var job = await _db.VideoJobs
+            .Where(x =>
+                x.Status == VideoJobStatus.Queued &&
+                (x.LockExpiresAt == null || x.LockExpiresAt < utcNow))
+            .OrderBy(x => x.VideoJobId)
+            .FirstOrDefaultAsync(cancellationToken);
+
+        if (job is null)
+        {
+            await tx.CommitAsync(cancellationToken);
+            return null;
+        }
+
+        job.Status = VideoJobStatus.Processing;
+        job.CurrentStep = VideoPipelineStep.Queued;
+        job.WorkerLockId = workerLockId;
+        job.LockedBy = Environment.MachineName;
+        job.LockExpiresAt = utcNow.AddMinutes(LockMinutes);
+        job.LastHeartbeatAt = utcNow;
+        job.UpdatedDate = utcNow;
+        job.ErrorMessage = null;
+
+        await _db.SaveChangesAsync(cancellationToken);
+        await tx.CommitAsync(cancellationToken);
+
+        _logger.LogInformation(
+            "Claimed VideoJobId={VideoJobId} with WorkerLockId={WorkerLockId}.",
+            job.VideoJobId,
+            workerLockId);
+
+        return job.VideoJobId;
     }
 
     private async Task ProcessJobInternalAsync(
@@ -152,6 +181,7 @@ public sealed class JobProcessor : IJobProcessor
         await EnsureLockAsync(job, workerLockId, cancellationToken);
 
         await UpdateStepAsync(job, VideoPipelineStep.ScriptGenerating, 5, cancellationToken);
+
         var script = await _scriptService.GenerateScriptAsync(job, cancellationToken);
 
         var scriptBlobPath = $"projects/{job.ProjectId}/jobs/{job.VideoJobId}/script/script.txt";
@@ -192,6 +222,7 @@ public sealed class JobProcessor : IJobProcessor
         }
 
         await UpdateStepAsync(job, VideoPipelineStep.ScenePlanning, 20, cancellationToken);
+
         var scenes = await _scenePlannerService.BuildScenesAsync(job, script, cancellationToken);
 
         foreach (var scene in scenes)
@@ -204,6 +235,7 @@ public sealed class JobProcessor : IJobProcessor
         }
 
         await _db.SaveChangesAsync(cancellationToken);
+
         await UpdateStepAsync(job, VideoPipelineStep.SceneReady, 35, cancellationToken);
 
         job = await _db.VideoJobs
@@ -211,18 +243,30 @@ public sealed class JobProcessor : IJobProcessor
             .Include(x => x.Assets)
             .FirstAsync(x => x.VideoJobId == videoJobId, cancellationToken);
 
-        var orderedScenes = job.Scenes.OrderBy(x => x.SceneNo).ToList();
+        var orderedScenes = job.Scenes
+            .OrderBy(x => x.SceneNo)
+            .ToList();
 
         for (var i = 0; i < orderedScenes.Count; i++)
         {
             var scene = orderedScenes[i];
 
-            await UpdateStepAsync(job, VideoPipelineStep.ImagePromptGenerating, 35 + (i * 15 / Math.Max(1, orderedScenes.Count)), cancellationToken);
+            await UpdateStepAsync(
+                job,
+                VideoPipelineStep.ImagePromptGenerating,
+                35 + (i * 15 / Math.Max(1, orderedScenes.Count)),
+                cancellationToken);
+
             scene.ScenePrompt = await _imagePromptService.GenerateScenePromptAsync(job, scene, cancellationToken);
             scene.UpdatedDate = DateTime.UtcNow;
             await _db.SaveChangesAsync(cancellationToken);
 
-            await UpdateStepAsync(job, VideoPipelineStep.ImageGenerating, 40 + (i * 20 / Math.Max(1, orderedScenes.Count)), cancellationToken);
+            await UpdateStepAsync(
+                job,
+                VideoPipelineStep.ImageGenerating,
+                40 + (i * 20 / Math.Max(1, orderedScenes.Count)),
+                cancellationToken);
+
             var imageAsset = await _imageGenerationService.GenerateImageAsync(job, scene, cancellationToken);
 
             _db.Assets.Add(imageAsset);
@@ -237,6 +281,7 @@ public sealed class JobProcessor : IJobProcessor
         await UpdateStepAsync(job, VideoPipelineStep.ImagesReady, 60, cancellationToken);
 
         await UpdateStepAsync(job, VideoPipelineStep.VoiceGenerating, 65, cancellationToken);
+
         var voiceAsset = await _voiceGenerationService.GenerateVoiceAsync(job, cancellationToken);
         if (voiceAsset is not null)
         {
@@ -250,6 +295,7 @@ public sealed class JobProcessor : IJobProcessor
         if (job.SubtitleEnabled)
         {
             await UpdateStepAsync(job, VideoPipelineStep.SubtitleGenerating, 78, cancellationToken);
+
             subtitleAsset = await _subtitleService.GenerateSubtitleAsync(job, cancellationToken);
             if (subtitleAsset is not null)
             {
@@ -293,9 +339,11 @@ public sealed class JobProcessor : IJobProcessor
         foreach (var asset in orderedSceneAssets)
         {
             var localPath = await _storageService.GetLocalPathAsync(asset.BlobPath, cancellationToken);
+
             if (string.IsNullOrWhiteSpace(localPath) || !File.Exists(localPath))
             {
-                throw new FileNotFoundException($"Scene image file not found for asset {asset.AssetId}. BlobPath={asset.BlobPath}");
+                throw new FileNotFoundException(
+                    $"Scene image file not found for asset {asset.AssetId}. BlobPath={asset.BlobPath}");
             }
 
             var targetPath = Path.Combine(scenesFolderPath, asset.FileName);
@@ -311,7 +359,9 @@ public sealed class JobProcessor : IJobProcessor
         string? subtitleFilePath = null;
         if (subtitleAsset is not null && !string.IsNullOrWhiteSpace(subtitleAsset.BlobPath))
         {
-            subtitleFilePath = await _storageService.GetLocalPathAsync(subtitleAsset.BlobPath, cancellationToken);
+            subtitleFilePath = await _storageService.GetLocalPathAsync(
+    subtitleAsset.BlobPath,
+    cancellationToken);
         }
 
         var finalVideoPath = await _videoRenderService.RenderFinalVideoAsync(
@@ -336,7 +386,11 @@ public sealed class JobProcessor : IJobProcessor
 
         var finalBlobPath = $"projects/{job.ProjectId}/jobs/{job.VideoJobId}/final/final.mp4";
         var finalBytes = await File.ReadAllBytesAsync(finalVideoPath, cancellationToken);
-        var finalPublicUrl = await _storageService.UploadBytesAsync(finalBlobPath, finalBytes, "video/mp4", cancellationToken);
+        var finalPublicUrl = await _storageService.UploadBytesAsync(
+            finalBlobPath,
+            finalBytes,
+            "video/mp4",
+            cancellationToken);
 
         var finalAsset = new Asset
         {
@@ -383,6 +437,7 @@ public sealed class JobProcessor : IJobProcessor
         job.LastHeartbeatAt = DateTime.UtcNow;
         job.LockExpiresAt = DateTime.UtcNow.AddMinutes(LockMinutes);
         job.UpdatedDate = DateTime.UtcNow;
+
         await _db.SaveChangesAsync(cancellationToken);
     }
 
@@ -399,6 +454,7 @@ public sealed class JobProcessor : IJobProcessor
         job.LastHeartbeatAt = DateTime.UtcNow;
         job.LockExpiresAt = DateTime.UtcNow.AddMinutes(LockMinutes);
         job.UpdatedDate = DateTime.UtcNow;
+
         await _db.SaveChangesAsync(cancellationToken);
     }
 }

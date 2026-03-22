@@ -21,4 +21,14 @@ builder.Services.AddContentStudioInfrastructure(builder.Configuration);
 builder.Services.AddHostedService<WorkerService>();
 
 var host = builder.Build();
+
+var logger = host.Services.GetRequiredService<ILoggerFactory>()
+    .CreateLogger("Startup");
+
+var environmentName = builder.Environment.EnvironmentName;
+var connectionString = builder.Configuration.GetConnectionString("HgermanAppsDb");
+
+logger.LogInformation("Worker environment: {EnvironmentName}", environmentName);
+logger.LogInformation("HgermanAppsDb configured: {HasConnectionString}", !string.IsNullOrWhiteSpace(connectionString));
+
 host.Run();
