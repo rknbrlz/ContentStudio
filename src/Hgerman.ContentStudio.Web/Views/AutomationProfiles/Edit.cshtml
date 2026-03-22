@@ -30,11 +30,13 @@
                 <div class="col-md-2">
                     <label asp-for="ProjectId" class="form-label"></label>
                     <input asp-for="ProjectId" class="form-control" />
+                    <span asp-validation-for="ProjectId" class="text-danger"></span>
                 </div>
 
                 <div class="col-md-2">
                     <label asp-for="LanguageCode" class="form-label"></label>
                     <input asp-for="LanguageCode" class="form-control" />
+                    <span asp-validation-for="LanguageCode" class="text-danger"></span>
                 </div>
 
                 <div class="col-md-2 d-flex align-items-end">
@@ -52,21 +54,25 @@
                 <div class="col-md-3">
                     <label asp-for="PlatformType" class="form-label"></label>
                     <select asp-for="PlatformType" asp-items="ViewBag.PlatformTypes" class="form-select"></select>
+                    <span asp-validation-for="PlatformType" class="text-danger"></span>
                 </div>
 
                 <div class="col-md-3">
                     <label asp-for="ToneType" class="form-label"></label>
                     <select asp-for="ToneType" asp-items="ViewBag.ToneTypes" class="form-select"></select>
+                    <span asp-validation-for="ToneType" class="text-danger"></span>
                 </div>
 
                 <div class="col-md-3">
                     <label asp-for="AspectRatio" class="form-label"></label>
                     <select asp-for="AspectRatio" asp-items="ViewBag.AspectRatios" class="form-select"></select>
+                    <span asp-validation-for="AspectRatio" class="text-danger"></span>
                 </div>
 
                 <div class="col-md-3">
                     <label asp-for="DurationTargetSec" class="form-label"></label>
                     <input asp-for="DurationTargetSec" class="form-control" />
+                    <span asp-validation-for="DurationTargetSec" class="text-danger"></span>
                 </div>
 
                 <div class="col-md-3">
@@ -98,11 +104,13 @@
                 <div class="col-md-3">
                     <label asp-for="DailyVideoLimit" class="form-label"></label>
                     <input asp-for="DailyVideoLimit" class="form-control" />
+                    <span asp-validation-for="DailyVideoLimit" class="text-danger"></span>
                 </div>
 
                 <div class="col-md-6">
                     <label asp-for="PreferredHoursCsv" class="form-label"></label>
                     <input asp-for="PreferredHoursCsv" class="form-control" placeholder="09,14,20" />
+                    <span asp-validation-for="PreferredHoursCsv" class="text-danger"></span>
                     <div class="form-text">UTC hour list, comma separated.</div>
                 </div>
             </div>
@@ -114,16 +122,19 @@
                 <div class="col-12">
                     <label asp-for="TopicPrompt" class="form-label"></label>
                     <textarea asp-for="TopicPrompt" class="form-control" rows="3"></textarea>
+                    <span asp-validation-for="TopicPrompt" class="text-danger"></span>
                 </div>
 
                 <div class="col-md-6">
                     <label asp-for="HookTemplate" class="form-label"></label>
                     <input asp-for="HookTemplate" class="form-control" />
+                    <span asp-validation-for="HookTemplate" class="text-danger"></span>
                 </div>
 
                 <div class="col-md-6">
                     <label asp-for="ViralPatternTemplate" class="form-label"></label>
                     <input asp-for="ViralPatternTemplate" class="form-control" />
+                    <span asp-validation-for="ViralPatternTemplate" class="text-danger"></span>
                 </div>
             </div>
         </div>
@@ -134,26 +145,31 @@
                 <div class="col-md-6">
                     <label asp-for="TrendKeywordsCsv" class="form-label"></label>
                     <input asp-for="TrendKeywordsCsv" class="form-control" placeholder="discipline,mindset,consistency" />
+                    <span asp-validation-for="TrendKeywordsCsv" class="text-danger"></span>
                 </div>
 
                 <div class="col-md-6">
                     <label asp-for="SeedTopicsCsv" class="form-label"></label>
                     <input asp-for="SeedTopicsCsv" class="form-control" placeholder="morning discipline,self respect,focus reset" />
+                    <span asp-validation-for="SeedTopicsCsv" class="text-danger"></span>
                 </div>
 
                 <div class="col-md-3">
                     <label asp-for="GrowthMode" class="form-label"></label>
                     <select asp-for="GrowthMode" asp-items="ViewBag.GrowthModes" class="form-select"></select>
+                    <span asp-validation-for="GrowthMode" class="text-danger"></span>
                 </div>
 
                 <div class="col-md-3">
                     <label asp-for="TitleTestVariants" class="form-label"></label>
                     <input asp-for="TitleTestVariants" class="form-control" />
+                    <span asp-validation-for="TitleTestVariants" class="text-danger"></span>
                 </div>
 
                 <div class="col-md-3">
                     <label asp-for="MinSuccessScore" class="form-label"></label>
                     <input asp-for="MinSuccessScore" class="form-control" />
+                    <span asp-validation-for="MinSuccessScore" class="text-danger"></span>
                 </div>
             </div>
         </div>

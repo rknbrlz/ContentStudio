@@ -38,6 +38,7 @@ public class AutomationProfilesController : Controller
     public IActionResult Create()
     {
         PopulateLookups();
+
         return View("Edit", new AutomationProfileEditViewModel
         {
             IsActive = true,
