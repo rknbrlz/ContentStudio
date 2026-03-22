@@ -33,7 +33,7 @@ public sealed class VideoRenderService : IVideoRenderService
     {
         if (scenes == null || scenes.Count == 0)
         {
-            throw new InvalidOperationException("No scenes found for render.");
+            throw new InvalidOperationException("No scenes found for rendering.");
         }
 
         if (!Directory.Exists(scenesFolderPath))
@@ -43,18 +43,41 @@ public sealed class VideoRenderService : IVideoRenderService
 
         Directory.CreateDirectory(outputFolderPath);
 
-        var finalPath = Path.Combine(outputFolderPath, "final.mp4");
+        var orderedScenes = scenes
+            .OrderBy(x => x.SceneNo)
+            .ToList();
+
+        var preparedClips = new List<string>();
+
+        foreach (var scene in orderedScenes)
+        {
+            var clipPath = await EnsureSceneClipAsync(
+                scene,
+                scenesFolderPath,
+                outputFolderPath,
+                cancellationToken);
+
+            preparedClips.Add(clipPath);
+        }
+
+        if (preparedClips.Count == 0)
+        {
+            throw new InvalidOperationException("No scene clips were prepared.");
+        }
+
         var concatFilePath = Path.Combine(outputFolderPath, "scenes.txt");
-        var logFilePath = Path.Combine(outputFolderPath, "ffmpeg.log");
+        await File.WriteAllTextAsync(
+            concatFilePath,
+            BuildConcatFile(preparedClips),
+            new UTF8Encoding(false),
+            cancellationToken);
+
+        var finalPath = Path.Combine(outputFolderPath, "final.mp4");
+        var logFilePath = Path.Combine(outputFolderPath, "ffmpeg-final.log");
 
         if (File.Exists(finalPath))
         {
             File.Delete(finalPath);
-        }
-
-        if (File.Exists(concatFilePath))
-        {
-            File.Delete(concatFilePath);
         }
 
         if (File.Exists(logFilePath))
@@ -63,69 +86,49 @@ public sealed class VideoRenderService : IVideoRenderService
         }
 
         var ffmpegPath = ResolveFfmpegPath();
-        var orderedScenes = scenes.OrderBy(x => x.SceneNo).ToList();
-
-        var imageFiles = orderedScenes
-            .Select(scene => Path.Combine(scenesFolderPath, $"scene_{scene.SceneNo:00}.png"))
-            .Where(File.Exists)
-            .ToList();
-
-        if (imageFiles.Count == 0)
-        {
-            imageFiles = Directory
-                .GetFiles(scenesFolderPath, "*.png")
-                .OrderBy(x => x)
-                .ToList();
-        }
-
-        if (imageFiles.Count == 0)
-        {
-            throw new FileNotFoundException("No scene image files found in scenes folder.", scenesFolderPath);
-        }
-
-        await CreateConcatFileAsync(concatFilePath, orderedScenes, imageFiles, cancellationToken);
-
-        var escapedConcat = EscapePathForFfmpeg(concatFilePath);
-        var escapedFinal = EscapePathForFfmpeg(finalPath);
-
         var hasAudio = !string.IsNullOrWhiteSpace(audioFilePath) && File.Exists(audioFilePath);
         var hasSubtitle = !string.IsNullOrWhiteSpace(subtitleFilePath) && File.Exists(subtitleFilePath);
 
-        var vf = BuildVideoFilter(job, hasSubtitle ? subtitleFilePath : null);
-
-        string arguments;
+        var args = new StringBuilder();
+        args.Append("-y ");
+        args.Append("-loglevel info ");
+        args.Append("-f concat -safe 0 ");
+        args.Append($"-i \"{concatFilePath}\" ");
 
         if (hasAudio)
         {
-            var escapedAudio = EscapePathForFfmpeg(audioFilePath!);
+            args.Append($"-i \"{audioFilePath}\" ");
+        }
 
-            arguments =
-                $"-y " +
-                $"-loglevel info " +
-                $"-f concat -safe 0 -i \"{escapedConcat}\" " +
-                $"-i \"{escapedAudio}\" " +
-                $"-vf \"{vf}\" " +
-                $"-map 0:v:0 -map 1:a:0 " +
-                $"-c:v libx264 -pix_fmt yuv420p -preset veryfast -crf 23 " +
-                $"-c:a aac -b:a 192k " +
-                $"-shortest " +
-                $"\"{escapedFinal}\"";
+        if (hasSubtitle)
+        {
+            var escapedSubtitle = EscapeSubtitlePathForFilter(subtitleFilePath!);
+            args.Append($"-vf \"subtitles='{escapedSubtitle}'\" ");
+        }
+
+        args.Append("-r 30 ");
+        args.Append("-c:v libx264 ");
+        args.Append("-pix_fmt yuv420p ");
+        args.Append("-preset medium ");
+        args.Append("-crf 20 ");
+        args.Append("-movflags +faststart ");
+
+        if (hasAudio)
+        {
+            args.Append("-map 0:v:0 -map 1:a:0 ");
+            args.Append("-c:a aac -b:a 192k ");
+            args.Append("-shortest ");
         }
         else
         {
-            arguments =
-                $"-y " +
-                $"-loglevel info " +
-                $"-f concat -safe 0 -i \"{escapedConcat}\" " +
-                $"-vf \"{vf}\" " +
-                $"-c:v libx264 -pix_fmt yuv420p -preset veryfast -crf 23 " +
-                $"-an " +
-                $"\"{escapedFinal}\"";
+            args.Append("-an ");
         }
+
+        args.Append($"\"{finalPath}\"");
 
         var result = await RunProcessAsync(
             ffmpegPath,
-            arguments,
+            args.ToString(),
             outputFolderPath,
             logFilePath,
             cancellationToken);
@@ -155,70 +158,154 @@ public sealed class VideoRenderService : IVideoRenderService
         return finalPath;
     }
 
-    private async Task CreateConcatFileAsync(
-        string concatFilePath,
-        IReadOnlyList<VideoScene> scenes,
-        IReadOnlyList<string> imageFiles,
+    private async Task<string> EnsureSceneClipAsync(
+        VideoScene scene,
+        string scenesFolderPath,
+        string outputFolderPath,
         CancellationToken cancellationToken)
+    {
+        var existingRenderedClip = FindExistingSceneVideo(scene.SceneNo, scenesFolderPath);
+        if (!string.IsNullOrWhiteSpace(existingRenderedClip))
+        {
+            return existingRenderedClip;
+        }
+
+        var visualPath = FindSceneVisual(scene.SceneNo, scenesFolderPath);
+        if (string.IsNullOrWhiteSpace(visualPath))
+        {
+            var files = Directory.GetFiles(scenesFolderPath)
+                .Select(Path.GetFileName)
+                .OrderBy(x => x)
+                .ToList();
+
+            var fileList = files.Count == 0
+                ? "(empty folder)"
+                : string.Join(", ", files);
+
+            throw new FileNotFoundException(
+                $"Visual not found for scene {scene.SceneNo}. Expected names like scene-001.*, scene_01.*, scene_1.*. Files in folder: {fileList}");
+        }
+
+        if (Path.GetExtension(visualPath).Equals(".mp4", StringComparison.OrdinalIgnoreCase))
+        {
+            return visualPath;
+        }
+
+        var outputClipPath = Path.Combine(outputFolderPath, $"scene-{scene.SceneNo:D3}.mp4");
+        if (File.Exists(outputClipPath))
+        {
+            return outputClipPath;
+        }
+
+        var duration = Convert.ToDouble(
+            scene.DurationSecond > 0 ? scene.DurationSecond : 3,
+            CultureInfo.InvariantCulture);
+
+        if (duration <= 0)
+        {
+            duration = 3;
+        }
+
+        var ffmpegPath = ResolveFfmpegPath();
+        var logFilePath = Path.Combine(outputFolderPath, $"ffmpeg-scene-{scene.SceneNo:D3}.log");
+
+        var vf =
+            "scale=1080:1920:force_original_aspect_ratio=increase," +
+            "crop=1080:1920," +
+            "zoompan=z='min(zoom+0.0015,1.12)':x='iw/2-(iw/zoom/2)':y='ih/2-(ih/zoom/2)':d=1:s=1080x1920:fps=30," +
+            "format=yuv420p";
+
+        var args = new StringBuilder();
+        args.Append("-y ");
+        args.Append("-loop 1 ");
+        args.Append($"-t {duration.ToString("0.00", CultureInfo.InvariantCulture)} ");
+        args.Append($"-i \"{visualPath}\" ");
+        args.Append($"-vf \"{vf}\" ");
+        args.Append("-r 30 ");
+        args.Append("-c:v libx264 ");
+        args.Append("-preset medium ");
+        args.Append("-crf 21 ");
+        args.Append("-pix_fmt yuv420p ");
+        args.Append("-an ");
+        args.Append($"\"{outputClipPath}\"");
+
+        var result = await RunProcessAsync(
+            ffmpegPath,
+            args.ToString(),
+            outputFolderPath,
+            logFilePath,
+            cancellationToken);
+
+        if (result.TimedOut)
+        {
+            throw new TimeoutException($"Scene clip render timed out for scene {scene.SceneNo}. See log file: {logFilePath}");
+        }
+
+        if (result.ExitCode != 0)
+        {
+            throw new InvalidOperationException(
+                $"Scene clip render failed for scene {scene.SceneNo}. Exit code: {result.ExitCode}. See log file: {logFilePath}. Error: {result.StandardError}");
+        }
+
+        if (!File.Exists(outputClipPath))
+        {
+            throw new FileNotFoundException($"Rendered scene clip was not created for scene {scene.SceneNo}.", outputClipPath);
+        }
+
+        return outputClipPath;
+    }
+
+    private static string? FindExistingSceneVideo(int sceneNo, string folderPath)
+    {
+        foreach (var candidate in BuildSceneCandidates(sceneNo, new[] { ".mp4" }))
+        {
+            var fullPath = Path.Combine(folderPath, candidate);
+            if (File.Exists(fullPath))
+            {
+                return fullPath;
+            }
+        }
+
+        return null;
+    }
+
+    private static string? FindSceneVisual(int sceneNo, string folderPath)
+    {
+        foreach (var candidate in BuildSceneCandidates(sceneNo, new[] { ".png", ".jpg", ".jpeg", ".webp", ".mp4" }))
+        {
+            var fullPath = Path.Combine(folderPath, candidate);
+            if (File.Exists(fullPath))
+            {
+                return fullPath;
+            }
+        }
+
+        return null;
+    }
+
+    private static IEnumerable<string> BuildSceneCandidates(int sceneNo, IEnumerable<string> extensions)
+    {
+        foreach (var ext in extensions)
+        {
+            yield return $"scene-{sceneNo:D3}{ext}";
+            yield return $"scene_{sceneNo:D3}{ext}";
+            yield return $"scene-{sceneNo:D2}{ext}";
+            yield return $"scene_{sceneNo:D2}{ext}";
+            yield return $"scene-{sceneNo}{ext}";
+            yield return $"scene_{sceneNo}{ext}";
+        }
+    }
+
+    private static string BuildConcatFile(IEnumerable<string> clipPaths)
     {
         var sb = new StringBuilder();
 
-        for (int i = 0; i < imageFiles.Count; i++)
+        foreach (var clipPath in clipPaths)
         {
-            var imagePath = imageFiles[i];
-            var scene = i < scenes.Count ? scenes[i] : scenes.Last();
-
-            var duration = Convert.ToDouble(
-                scene.DurationSecond > 0 ? scene.DurationSecond : 3,
-                CultureInfo.InvariantCulture);
-
-            if (duration <= 0)
-            {
-                duration = 3;
-            }
-
-            sb.AppendLine($"file '{EscapeConcatPath(imagePath)}'");
-            sb.AppendLine($"duration {duration.ToString(CultureInfo.InvariantCulture)}");
+            sb.AppendLine($"file '{EscapeConcatPath(clipPath)}'");
         }
 
-        sb.AppendLine($"file '{EscapeConcatPath(imageFiles.Last())}'");
-
-        await File.WriteAllTextAsync(
-            concatFilePath,
-            sb.ToString(),
-            new UTF8Encoding(false),
-            cancellationToken);
-    }
-
-    private string BuildVideoFilter(VideoJob job, string? subtitleFilePath)
-    {
-        var aspectRatioText = job.AspectRatio.ToString();
-        var platformTypeText = job.PlatformType.ToString();
-
-        var isVertical =
-            aspectRatioText.Contains("9:16", StringComparison.OrdinalIgnoreCase) ||
-            aspectRatioText.Contains("Vertical", StringComparison.OrdinalIgnoreCase) ||
-            string.Equals(platformTypeText, "YouTubeShorts", StringComparison.OrdinalIgnoreCase) ||
-            string.Equals(platformTypeText, "TikTok", StringComparison.OrdinalIgnoreCase) ||
-            string.Equals(platformTypeText, "InstagramReels", StringComparison.OrdinalIgnoreCase);
-
-        var targetSize = isVertical ? "1080:1920" : "1920:1080";
-
-        var baseFilter =
-            $"scale={targetSize}:force_original_aspect_ratio=decrease," +
-            $"pad={targetSize}:(ow-iw)/2:(oh-ih)/2," +
-            $"format=yuv420p";
-
-        if (!string.IsNullOrWhiteSpace(subtitleFilePath) && File.Exists(subtitleFilePath))
-        {
-            var escapedSubtitle = EscapeSubtitlePathForFilter(subtitleFilePath);
-
-            return
-                $"{baseFilter}," +
-                $"subtitles='{escapedSubtitle}:force_style=FontName=Arial,FontSize=24,PrimaryColour=&HFFFFFF&,OutlineColour=&H000000&,BorderStyle=3,Outline=2,Shadow=1,Alignment=2,MarginV=110'";
-        }
-
-        return baseFilter;
+        return sb.ToString();
     }
 
     private string ResolveFfmpegPath()
@@ -239,11 +326,6 @@ public sealed class VideoRenderService : IVideoRenderService
     private static string EscapeConcatPath(string path)
     {
         return path.Replace("\\", "/").Replace("'", "'\\''");
-    }
-
-    private static string EscapePathForFfmpeg(string path)
-    {
-        return path.Replace("\\", "/");
     }
 
     private static string EscapeSubtitlePathForFilter(string path)

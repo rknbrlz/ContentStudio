@@ -1,12 +1,10 @@
-using System.Threading;
-using System.Threading.Tasks;
+using Hgerman.ContentStudio.Domain.Entities;
 
 namespace Hgerman.ContentStudio.Application.Interfaces;
 
 public interface ISubtitleService
 {
-    Task<string?> GenerateAssSubtitleAsync(
-        string bilingualScript,
-        string outputFolderPath,
+    Task<Asset?> GenerateSubtitleAsync(
+        VideoJob job,
         CancellationToken cancellationToken = default);
 }

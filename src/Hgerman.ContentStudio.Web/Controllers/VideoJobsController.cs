@@ -81,8 +81,47 @@ public class VideoJobsController : Controller
             .FirstOrDefaultAsync(x => x.VideoJobId == id, cancellationToken);
 
         if (job == null)
+        {
             return NotFound();
+        }
 
         return View(job);
+    }
+
+    [HttpGet]
+    public async Task<IActionResult> Status(int id, CancellationToken cancellationToken)
+    {
+        var job = await _db.VideoJobs
+            .AsNoTracking()
+            .Include(x => x.Scenes)
+            .Include(x => x.Assets)
+            .Include(x => x.ErrorLogs)
+            .FirstOrDefaultAsync(x => x.VideoJobId == id, cancellationToken);
+
+        if (job == null)
+        {
+            return NotFound();
+        }
+
+        return Json(new
+        {
+            videoJobId = job.VideoJobId,
+            status = job.Status.ToString(),
+            currentStep = job.CurrentStep.ToString(),
+            progressPercent = job.ProgressPercent,
+            updatedDate = job.UpdatedDate.HasValue
+    ? job.UpdatedDate.Value.ToString("yyyy-MM-dd HH:mm:ss")
+    : "",
+            completedDate = job.CompletedDate.HasValue
+    ? job.CompletedDate.Value.ToString("yyyy-MM-dd HH:mm:ss")
+    : "",
+            errorMessage = job.ErrorMessage,
+            sceneCount = job.Scenes.Count,
+            assetCount = job.Assets.Count,
+            errorCount = job.ErrorLogs.Count,
+            isTerminal = job.Status == VideoJobStatus.Completed
+                         || job.Status == VideoJobStatus.Failed
+                         || job.Status == VideoJobStatus.Cancelled
+        });
     }
 }
