@@ -22,9 +22,22 @@ public class VoiceGenerationService : IVoiceGenerationService
         _logger = logger;
     }
 
-    public async Task<Asset> GenerateVoiceAsync(VideoJob job, CancellationToken cancellationToken = default)
+    public async Task<Asset?> GenerateVoiceAsync(
+        VideoJob job,
+        CancellationToken cancellationToken = default)
     {
-        var script = string.Join(" ", job.Scenes.OrderBy(x => x.SceneNo).Select(x => x.SceneText));
+        var script = string.Join(
+            " ",
+            job.Scenes
+                .OrderBy(x => x.SceneNo)
+                .Select(x => !string.IsNullOrWhiteSpace(x.VoiceText) ? x.VoiceText.Trim() : x.SceneText.Trim())
+                .Where(x => !string.IsNullOrWhiteSpace(x)));
+
+        if (string.IsNullOrWhiteSpace(script))
+        {
+            return null;
+        }
+
         byte[] bytes;
         var provider = "OpenAI";
         var fileName = "voice.mp3";
@@ -34,7 +47,10 @@ public class VoiceGenerationService : IVoiceGenerationService
         {
             if (_openAiApiClient.IsConfigured)
             {
-                bytes = await _openAiApiClient.GenerateSpeechAsync(script, job.VoiceName ?? string.Empty, cancellationToken);
+                bytes = await _openAiApiClient.GenerateSpeechAsync(
+                    script,
+                    job.VoiceName ?? string.Empty,
+                    cancellationToken);
             }
             else
             {
@@ -44,9 +60,8 @@ public class VoiceGenerationService : IVoiceGenerationService
                 bytes = Encoding.UTF8.GetBytes(script);
             }
         }
-        catch (Exception ex)
+        catch
         {
-            _logger.LogWarning(ex, "Voice generation failed for VideoJobId {VideoJobId}. Falling back to text placeholder.", job.VideoJobId);
             provider = "FallbackText";
             fileName = "voice.txt";
             mime = "text/plain";
@@ -68,7 +83,8 @@ public class VoiceGenerationService : IVoiceGenerationService
             FileSize = bytes.LongLength,
             DurationMs = job.DurationTargetSec * 1000,
             Status = VideoJobStatus.Completed,
-            CreatedDate = DateTime.UtcNow
+            CreatedDate = DateTime.UtcNow,
+            UpdatedDate = DateTime.UtcNow
         };
     }
 }

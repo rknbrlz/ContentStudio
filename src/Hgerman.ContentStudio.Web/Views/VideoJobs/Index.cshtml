@@ -2,6 +2,11 @@
 
 @{
     ViewData["Title"] = "Video Jobs";
+
+    var hasActiveJobs = Model != null && Model.Any(x =>
+        string.Equals(x.Status, "Queued", StringComparison.OrdinalIgnoreCase) ||
+        string.Equals(x.Status, "Processing", StringComparison.OrdinalIgnoreCase) ||
+        string.Equals(x.Status, "Draft", StringComparison.OrdinalIgnoreCase));
 }
 
 <div class="container-fluid">
@@ -19,7 +24,8 @@
             <form asp-controller="VideoJobs"
                   asp-action="RunAutomationNow"
                   method="post"
-                  class="d-inline">
+                  class="d-inline"
+                  id="run-automation-form">
                 @Html.AntiForgeryToken()
                 <button type="submit" class="btn btn-success">
                     ▶ Run Automation Now
@@ -106,3 +112,34 @@
         </div>
     </div>
 </div>
+
+@section Scripts
+{
+    <script>
+        (function () {
+            const hasActiveJobs = '@hasActiveJobs'.toLowerCase() === 'true';
+            const refreshIntervalMs = 5000;
+
+            if (!hasActiveJobs) {
+                return;
+            }
+
+            let isSubmitting = false;
+
+            const automationForm = document.getElementById('run-automation-form');
+            if (automationForm) {
+                automationForm.addEventListener('submit', function () {
+                    isSubmitting = true;
+                });
+            }
+
+            setInterval(function () {
+                if (isSubmitting) {
+                    return;
+                }
+
+                window.location.reload();
+            }, refreshIntervalMs);
+        })();
+    </script>
+}

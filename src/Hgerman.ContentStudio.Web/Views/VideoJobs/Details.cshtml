@@ -19,6 +19,9 @@
         "Failed" => "bg-danger",
         _ => "bg-primary"
     };
+
+    var shouldAutoRefresh =
+        Model.Status.ToString() is "Queued" or "Processing" or "Draft";
 }
 
 <div class="container-fluid">
@@ -28,14 +31,14 @@
             <div class="text-muted">@Model.Title</div>
         </div>
 
-        <div class="text-end">
+        <div class="text-end" id="job-status-panel">
             <div><strong>Status:</strong> @Model.Status</div>
             <div><strong>Step:</strong> @Model.CurrentStep</div>
             <div><strong>Progress:</strong> @Model.ProgressPercent%</div>
         </div>
     </div>
 
-    <div class="card shadow-sm mb-4">
+    <div class="card shadow-sm mb-4" id="job-progress-card">
         <div class="card-body">
             <div class="progress" style="height:22px;">
                 <div class="progress-bar progress-bar-striped progress-bar-animated @progressBarClass"
@@ -332,3 +335,73 @@
         </div>
     </div>
 </div>
+
+@section Scripts
+{
+    <script>
+        (function () {
+            const shouldAutoRefresh = '@shouldAutoRefresh'.toLowerCase() === 'true';
+            const refreshIntervalMs = 3000;
+
+            if (!shouldAutoRefresh) {
+                return;
+            }
+
+            let isRefreshing = false;
+            let timerId = null;
+
+            async function refreshPageSilently() {
+                if (isRefreshing) {
+                    return;
+                }
+
+                isRefreshing = true;
+
+                try {
+                    const response = await fetch(window.location.href, {
+                        method: 'GET',
+                        cache: 'no-store',
+                        headers: {
+                            'X-Requested-With': 'XMLHttpRequest'
+                        }
+                    });
+
+                    if (!response.ok) {
+                        return;
+                    }
+
+                    const html = await response.text();
+                    const parser = new DOMParser();
+                    const doc = parser.parseFromString(html, 'text/html');
+
+                    const newContainer = doc.querySelector('.container-fluid');
+                    const currentContainer = document.querySelector('.container-fluid');
+
+                    if (!newContainer || !currentContainer) {
+                        return;
+                    }
+
+                    currentContainer.innerHTML = newContainer.innerHTML;
+
+                    const newStatusText = doc.body.innerText || '';
+                    const isFinished =
+                        newStatusText.includes('Status: Completed') ||
+                        newStatusText.includes('Status: Failed');
+
+                    if (isFinished && timerId) {
+                        clearInterval(timerId);
+                        timerId = null;
+                    }
+                }
+                catch (error) {
+                    console.warn('Auto refresh failed:', error);
+                }
+                finally {
+                    isRefreshing = false;
+                }
+            }
+
+            timerId = setInterval(refreshPageSilently, refreshIntervalMs);
+        })();
+    </script>
+}

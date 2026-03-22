@@ -22,6 +22,7 @@ public sealed class JobProcessor : IJobProcessor
     private readonly ILogger<JobProcessor> _logger;
 
     private const int LockMinutes = 15;
+    private static readonly TimeSpan RenderTimeout = TimeSpan.FromMinutes(4);
 
     public JobProcessor(
         ContentStudioDbContext db,
@@ -125,7 +126,7 @@ public sealed class JobProcessor : IJobProcessor
                 UpdatedDate = DateTime.UtcNow
             });
 
-            await _db.SaveChangesAsync(cancellationToken);
+            await _db.SaveChangesAsync(CancellationToken.None);
             return true;
         }
     }
@@ -232,9 +233,22 @@ public sealed class JobProcessor : IJobProcessor
         foreach (var scene in scenes)
         {
             scene.VideoJobId = job.VideoJobId;
+
+            if (string.IsNullOrWhiteSpace(scene.VoiceText))
+            {
+                scene.VoiceText = scene.SceneText;
+            }
+
+            scene.SceneText = scene.VoiceText;
+            scene.SubtitleText = null;
+            scene.OverlayText = null;
+            scene.OverlayStartSecond = null;
+            scene.OverlayEndSecond = null;
+
             scene.Status = VideoJobStatus.Queued;
             scene.CreatedDate = DateTime.UtcNow;
             scene.UpdatedDate = DateTime.UtcNow;
+
             _db.VideoScenes.Add(scene);
         }
 
@@ -341,8 +355,33 @@ public sealed class JobProcessor : IJobProcessor
         Directory.CreateDirectory(scenesFolderPath);
         Directory.CreateDirectory(outputFolderPath);
 
-        foreach (var asset in orderedSceneAssets)
+        _logger.LogInformation("=== RENDER PRECHECK START ===");
+        _logger.LogInformation("VideoJobId: {VideoJobId}", job.VideoJobId);
+        _logger.LogInformation("Scenes count: {ScenesCount}", job.Scenes.Count);
+        _logger.LogInformation("Scene assets count: {SceneAssetsCount}", orderedSceneAssets.Count);
+        _logger.LogInformation("Scenes folder path: {ScenesFolderPath}", scenesFolderPath);
+        _logger.LogInformation("Output folder path: {OutputFolderPath}", outputFolderPath);
+
+        foreach (var existingFile in Directory.GetFiles(scenesFolderPath))
         {
+            try
+            {
+                File.Delete(existingFile);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "Could not delete old scene file {File}", existingFile);
+            }
+        }
+
+        foreach (var scene in job.Scenes.OrderBy(x => x.SceneNo))
+        {
+            var asset = orderedSceneAssets.FirstOrDefault(a => a.AssetId == scene.ImageAssetId);
+            if (asset is null)
+            {
+                throw new InvalidOperationException($"Image asset missing for scene #{scene.SceneNo}.");
+            }
+
             if (string.IsNullOrWhiteSpace(asset.BlobPath))
             {
                 throw new InvalidOperationException($"BlobPath is empty for scene asset {asset.AssetId}.");
@@ -356,34 +395,71 @@ public sealed class JobProcessor : IJobProcessor
                     $"Scene image file not found for asset {asset.AssetId}.{Environment.NewLine}BlobPath={asset.BlobPath}");
             }
 
-            var targetFileName = string.IsNullOrWhiteSpace(asset.FileName)
-                ? $"scene_{asset.AssetId}.png"
-                : asset.FileName;
+            var extension = Path.GetExtension(localPath);
+            if (string.IsNullOrWhiteSpace(extension))
+            {
+                extension = ".png";
+            }
 
+            var targetFileName = $"scene_{scene.SceneNo:00}{extension}";
             var targetPath = Path.Combine(scenesFolderPath, targetFileName);
+
             File.Copy(localPath, targetPath, true);
+
+            _logger.LogInformation(
+                "Copied scene image | SceneNo={SceneNo} | AssetId={AssetId} | Source={Source} | Target={Target}",
+                scene.SceneNo,
+                asset.AssetId,
+                localPath,
+                targetPath);
         }
 
         string? audioFilePath = null;
         if (voiceAsset is not null && !string.IsNullOrWhiteSpace(voiceAsset.BlobPath))
         {
             audioFilePath = await _storageService.GetLocalPathAsync(voiceAsset.BlobPath, cancellationToken);
+            _logger.LogInformation("Audio file path: {AudioFilePath}", audioFilePath ?? "(null)");
+            _logger.LogInformation("Audio exists: {Exists}", !string.IsNullOrWhiteSpace(audioFilePath) && File.Exists(audioFilePath));
         }
 
         string? subtitleFilePath = null;
         if (subtitleAsset is not null && !string.IsNullOrWhiteSpace(subtitleAsset.BlobPath))
         {
             subtitleFilePath = await _storageService.GetLocalPathAsync(subtitleAsset.BlobPath, cancellationToken);
+            _logger.LogInformation("Subtitle file path: {SubtitleFilePath}", subtitleFilePath ?? "(null)");
+            _logger.LogInformation("Subtitle exists: {Exists}", !string.IsNullOrWhiteSpace(subtitleFilePath) && File.Exists(subtitleFilePath));
         }
 
-        var finalVideoPath = await _videoRenderService.RenderFinalVideoAsync(
-            job,
-            job.Scenes.OrderBy(x => x.SceneNo).ToList(),
-            scenesFolderPath,
-            audioFilePath,
-            subtitleFilePath,
-            outputFolderPath,
-            cancellationToken);
+        foreach (var copiedFile in Directory.GetFiles(scenesFolderPath))
+        {
+            _logger.LogInformation("Scene file ready: {File}", copiedFile);
+        }
+
+        _logger.LogInformation("=== RENDER PRECHECK END ===");
+
+        string finalVideoPath;
+        try
+        {
+            using var renderCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+            renderCts.CancelAfter(RenderTimeout);
+
+            _logger.LogInformation("Calling RenderFinalVideoAsync for VideoJobId {VideoJobId}", job.VideoJobId);
+
+            finalVideoPath = await _videoRenderService.RenderFinalVideoAsync(
+                job,
+                job.Scenes.OrderBy(x => x.SceneNo).ToList(),
+                scenesFolderPath,
+                audioFilePath,
+                subtitleFilePath,
+                outputFolderPath,
+                renderCts.Token);
+
+            _logger.LogInformation("RenderFinalVideoAsync returned: {FinalVideoPath}", finalVideoPath);
+        }
+        catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested)
+        {
+            throw new InvalidOperationException($"Video rendering timed out after {RenderTimeout.TotalMinutes:0} minutes.");
+        }
 
         if (!File.Exists(finalVideoPath))
         {
