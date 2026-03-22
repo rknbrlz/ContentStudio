@@ -1,79 +1,170 @@
-﻿@model List<Hgerman.ContentStudio.Shared.DTOs.AutomationProfileListItemDto>
+﻿@model Hgerman.ContentStudio.Web.Models.AutomationProfileEditViewModel
 
 @{
-    ViewData["Title"] = "Automation Profiles";
+    var isEdit = Model.AutomationProfileId.HasValue;
+    ViewData["Title"] = isEdit ? "Edit Automation Profile" : "Create Automation Profile";
 }
 
 <div class="container py-4">
-    <div class="d-flex justify-content-between align-items-center mb-3">
-        <div>
-            <h2 class="mb-1">Automation Profiles</h2>
-            <div class="text-muted">Create, edit and run content automation profiles.</div>
-        </div>
-        <a asp-action="Create" class="btn btn-primary">+ New Profile</a>
-    </div>
+    <h2 class="mb-3">@ViewData["Title"]</h2>
 
-    <div class="card shadow-sm">
-        <div class="card-body p-0">
-            <table class="table table-hover align-middle mb-0">
-                <thead class="table-light">
-                    <tr>
-                        <th>ID</th>
-                        <th>Name</th>
-                        <th>Status</th>
-                        <th>Language</th>
-                        <th>Growth</th>
-                        <th>Daily Limit</th>
-                        <th>Hours</th>
-                        <th>Last Run</th>
-                        <th class="text-end">Actions</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    @if (Model.Count == 0)
-                    {
-                        <tr>
-                            <td colspan="9" class="text-center text-muted py-4">No automation profile yet.</td>
-                        </tr>
-                    }
-                    else
-                    {
-                        foreach (var item in Model)
-                        {
-                            <tr>
-                                <td>@item.AutomationProfileId</td>
-                                <td class="fw-semibold">@item.Name</td>
-                                <td>
-                                    @if (item.IsActive)
-                                    {
-                                        <span class="badge bg-success">Active</span>
-                                    }
-                                    else
-                                    {
-                                        <span class="badge bg-secondary">Passive</span>
-                                    }
-                                </td>
-                                <td>@item.LanguageCode</td>
-                                <td>@item.GrowthMode</td>
-                                <td>@item.DailyVideoLimit</td>
-                                <td>@item.PreferredHoursCsv</td>
-                                <td>@(item.LastRunAtUtc?.ToString("yyyy-MM-dd HH:mm") ?? "-")</td>
-                                <td class="text-end">
-                                    <a asp-action="Details" asp-route-id="@item.AutomationProfileId" class="btn btn-sm btn-outline-dark">Details</a>
-                                    <a asp-action="Edit" asp-route-id="@item.AutomationProfileId" class="btn btn-sm btn-outline-primary">Edit</a>
+    <form asp-action="@(isEdit ? "Edit" : "Create")" method="post">
+        @Html.AntiForgeryToken()
 
-                                    <form asp-action="Toggle" asp-route-id="@item.AutomationProfileId" method="post" class="d-inline">
-                                        @Html.AntiForgeryToken()
-                                        <button type="submit" class="btn btn-sm btn-outline-warning">
-                                            @(item.IsActive ? "Disable" : "Enable")
-                                        </button>
-                                    </form>
-                                </td>
-                            </tr>
-                        }
-                    }
-                </tbody>
-            </table>
+        @if (isEdit)
+        {
+            <input asp-for="AutomationProfileId" type="hidden" />
+        }
+
+        <div asp-validation-summary="ModelOnly" class="text-danger mb-3"></div>
+
+        <div class="card shadow-sm mb-3">
+            <div class="card-header">Basic</div>
+            <div class="card-body row g-3">
+                <div class="col-md-6">
+                    <label asp-for="Name" class="form-label"></label>
+                    <input asp-for="Name" class="form-control" />
+                    <span asp-validation-for="Name" class="text-danger"></span>
+                </div>
+
+                <div class="col-md-2">
+                    <label asp-for="ProjectId" class="form-label"></label>
+                    <input asp-for="ProjectId" class="form-control" />
+                </div>
+
+                <div class="col-md-2">
+                    <label asp-for="LanguageCode" class="form-label"></label>
+                    <input asp-for="LanguageCode" class="form-control" />
+                </div>
+
+                <div class="col-md-2 d-flex align-items-end">
+                    <div class="form-check">
+                        <input asp-for="IsActive" class="form-check-input" />
+                        <label asp-for="IsActive" class="form-check-label"></label>
+                    </div>
+                </div>
+            </div>
         </div>
-    </div>
+
+        <div class="card shadow-sm mb-3">
+            <div class="card-header">Video Defaults</div>
+            <div class="card-body row g-3">
+                <div class="col-md-3">
+                    <label asp-for="PlatformType" class="form-label"></label>
+                    <select asp-for="PlatformType" asp-items="ViewBag.PlatformTypes" class="form-select"></select>
+                </div>
+
+                <div class="col-md-3">
+                    <label asp-for="ToneType" class="form-label"></label>
+                    <select asp-for="ToneType" asp-items="ViewBag.ToneTypes" class="form-select"></select>
+                </div>
+
+                <div class="col-md-3">
+                    <label asp-for="AspectRatio" class="form-label"></label>
+                    <select asp-for="AspectRatio" asp-items="ViewBag.AspectRatios" class="form-select"></select>
+                </div>
+
+                <div class="col-md-3">
+                    <label asp-for="DurationTargetSec" class="form-label"></label>
+                    <input asp-for="DurationTargetSec" class="form-control" />
+                </div>
+
+                <div class="col-md-3">
+                    <div class="form-check mt-4">
+                        <input asp-for="SubtitleEnabled" class="form-check-input" />
+                        <label asp-for="SubtitleEnabled" class="form-check-label"></label>
+                    </div>
+                </div>
+
+                <div class="col-md-3">
+                    <div class="form-check mt-4">
+                        <input asp-for="ThumbnailEnabled" class="form-check-input" />
+                        <label asp-for="ThumbnailEnabled" class="form-check-label"></label>
+                    </div>
+                </div>
+
+                <div class="col-md-3">
+                    <div class="form-check mt-4">
+                        <input asp-for="AutoPublishYouTube" class="form-check-input" />
+                        <label asp-for="AutoPublishYouTube" class="form-check-label"></label>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="card shadow-sm mb-3">
+            <div class="card-header">Schedule</div>
+            <div class="card-body row g-3">
+                <div class="col-md-3">
+                    <label asp-for="DailyVideoLimit" class="form-label"></label>
+                    <input asp-for="DailyVideoLimit" class="form-control" />
+                </div>
+
+                <div class="col-md-6">
+                    <label asp-for="PreferredHoursCsv" class="form-label"></label>
+                    <input asp-for="PreferredHoursCsv" class="form-control" placeholder="09,14,20" />
+                    <div class="form-text">UTC hour list, comma separated.</div>
+                </div>
+            </div>
+        </div>
+
+        <div class="card shadow-sm mb-3">
+            <div class="card-header">Content Strategy</div>
+            <div class="card-body row g-3">
+                <div class="col-12">
+                    <label asp-for="TopicPrompt" class="form-label"></label>
+                    <textarea asp-for="TopicPrompt" class="form-control" rows="3"></textarea>
+                </div>
+
+                <div class="col-md-6">
+                    <label asp-for="HookTemplate" class="form-label"></label>
+                    <input asp-for="HookTemplate" class="form-control" />
+                </div>
+
+                <div class="col-md-6">
+                    <label asp-for="ViralPatternTemplate" class="form-label"></label>
+                    <input asp-for="ViralPatternTemplate" class="form-control" />
+                </div>
+            </div>
+        </div>
+
+        <div class="card shadow-sm mb-4">
+            <div class="card-header">Phase 2 - Growth Engine</div>
+            <div class="card-body row g-3">
+                <div class="col-md-6">
+                    <label asp-for="TrendKeywordsCsv" class="form-label"></label>
+                    <input asp-for="TrendKeywordsCsv" class="form-control" placeholder="discipline,mindset,consistency" />
+                </div>
+
+                <div class="col-md-6">
+                    <label asp-for="SeedTopicsCsv" class="form-label"></label>
+                    <input asp-for="SeedTopicsCsv" class="form-control" placeholder="morning discipline,self respect,focus reset" />
+                </div>
+
+                <div class="col-md-3">
+                    <label asp-for="GrowthMode" class="form-label"></label>
+                    <select asp-for="GrowthMode" asp-items="ViewBag.GrowthModes" class="form-select"></select>
+                </div>
+
+                <div class="col-md-3">
+                    <label asp-for="TitleTestVariants" class="form-label"></label>
+                    <input asp-for="TitleTestVariants" class="form-control" />
+                </div>
+
+                <div class="col-md-3">
+                    <label asp-for="MinSuccessScore" class="form-label"></label>
+                    <input asp-for="MinSuccessScore" class="form-control" />
+                </div>
+            </div>
+        </div>
+
+        <div class="d-flex gap-2">
+            <button type="submit" class="btn btn-primary">Save</button>
+            <a asp-action="Index" class="btn btn-outline-secondary">Back</a>
+        </div>
+    </form>
 </div>
+
+@section Scripts {
+    <partial name="_ValidationScriptsPartial" />
+}

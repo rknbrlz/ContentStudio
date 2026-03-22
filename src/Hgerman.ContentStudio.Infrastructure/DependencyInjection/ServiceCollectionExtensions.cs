@@ -21,13 +21,20 @@ public static class ServiceCollectionExtensions
             options.UseSqlServer(connectionString);
         });
 
-        services.Configure<StorageOptions>(
-            configuration.GetSection("Storage"));
-
         services.Configure<AiProviderOptions>(
             configuration.GetSection("AiProviders"));
 
-        services.AddHttpClient<OpenAiApiClient>();
+        services.Configure<FfmpegOptions>(
+            configuration.GetSection("Ffmpeg"));
+
+        services.Configure<StorageOptions>(
+            configuration.GetSection("Storage"));
+
+        services.Configure<YouTubeOptions>(
+            configuration.GetSection("YouTube"));
+
+        services.AddHttpClient();
+        services.AddSingleton<OpenAiApiClient>();
 
         services.AddScoped<IJobProcessor, JobProcessor>();
         services.AddScoped<IVideoJobService, VideoJobService>();

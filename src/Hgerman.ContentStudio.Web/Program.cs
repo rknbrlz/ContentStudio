@@ -6,8 +6,12 @@ using Hgerman.ContentStudio.Infrastructure.Services;
 var builder = WebApplication.CreateBuilder(args);
 
 builder.Services.AddControllersWithViews();
-builder.Services.Configure<WorkerOptions>(builder.Configuration.GetSection("Worker"));
+
+builder.Services.Configure<WorkerOptions>(
+    builder.Configuration.GetSection("Worker"));
+
 builder.Services.AddContentStudioInfrastructure(builder.Configuration);
+
 builder.Services.AddScoped<IAutomationService, AutomationService>();
 builder.Services.AddScoped<ITitleOptimizationService, TitleOptimizationService>();
 
@@ -22,7 +26,6 @@ if (!app.Environment.IsDevelopment())
 app.UseHttpsRedirection();
 app.UseStaticFiles();
 app.UseRouting();
-app.UseAuthorization();
 
 app.MapControllerRoute(
     name: "default",

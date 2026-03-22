@@ -176,8 +176,8 @@ public sealed class OpenAiApiClient
         };
 
         var json = JsonSerializer.Serialize(payload, JsonOptions);
-
         const int maxAttempts = 3;
+
         for (var attempt = 1; attempt <= maxAttempts; attempt++)
         {
             try
@@ -214,7 +214,8 @@ public sealed class OpenAiApiClient
             }
             catch (Exception ex) when (attempt < maxAttempts && IsTransientException(ex))
             {
-                _logger.LogWarning(ex,
+                _logger.LogWarning(
+                    ex,
                     "OpenAI speech request transient failure on attempt {Attempt}. Retrying...",
                     attempt);
 
@@ -228,9 +229,7 @@ public sealed class OpenAiApiClient
     private HttpClient CreateClient()
     {
         var client = _httpClientFactory.CreateClient(nameof(OpenAiApiClient));
-
         client.Timeout = TimeSpan.FromMinutes(5);
-
         client.DefaultRequestHeaders.Authorization =
             new AuthenticationHeaderValue("Bearer", _options.OpenAiApiKey);
 
@@ -249,8 +248,8 @@ public sealed class OpenAiApiClient
         CancellationToken cancellationToken)
     {
         var json = JsonSerializer.Serialize(payload, JsonOptions);
-
         const int maxAttempts = 3;
+
         for (var attempt = 1; attempt <= maxAttempts; attempt++)
         {
             try
@@ -289,7 +288,8 @@ public sealed class OpenAiApiClient
             }
             catch (Exception ex) when (attempt < maxAttempts && IsTransientException(ex))
             {
-                _logger.LogWarning(ex,
+                _logger.LogWarning(
+                    ex,
                     "OpenAI request to {Path} transient failure on attempt {Attempt}. Retrying...",
                     relativePath,
                     attempt);
@@ -310,10 +310,10 @@ public sealed class OpenAiApiClient
     private static bool IsTransientException(Exception ex)
     {
         return ex is TaskCanceledException
-               || ex is TimeoutException
-               || ex is HttpRequestException
-               || ex.InnerException is TimeoutException
-               || ex.InnerException is HttpRequestException;
+            || ex is TimeoutException
+            || ex is HttpRequestException
+            || ex.InnerException is TimeoutException
+            || ex.InnerException is HttpRequestException;
     }
 
     private static TimeSpan GetRetryDelay(int attempt)
