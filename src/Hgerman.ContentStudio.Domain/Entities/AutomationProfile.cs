@@ -1,6 +1,8 @@
-﻿namespace Hgerman.ContentStudio.Domain.Entities;
+﻿using Hgerman.ContentStudio.Domain.Common;
 
-public class AutomationProfile
+namespace Hgerman.ContentStudio.Domain.Entities;
+
+public class AutomationProfile : BaseEntity
 {
     public int AutomationProfileId { get; set; }
     public string Name { get; set; } = string.Empty;
@@ -23,13 +25,21 @@ public class AutomationProfile
     public string? HookTemplate { get; set; }
     public string? ViralPatternTemplate { get; set; }
 
-    public bool AutoPublishYouTube { get; set; } = true;
+    public bool AutoPublishYouTube { get; set; }
+
+    // Phase 2
+    public string? TrendKeywordsCsv { get; set; }
+    public string? SeedTopicsCsv { get; set; }
+    public string GrowthMode { get; set; } = "balanced";
+    public int TitleTestVariants { get; set; } = 3;
+    public decimal MinSuccessScore { get; set; } = 55m;
 
     public DateTime? LastRunAtUtc { get; set; }
     public DateTime? LastGeneratedDateUtc { get; set; }
 
-    public DateTime CreatedDate { get; set; }
-    public DateTime UpdatedDate { get; set; }
-
     public Project? Project { get; set; }
+
+    public ICollection<TrendSnapshot> TrendSnapshots { get; set; } = new List<TrendSnapshot>();
+    public ICollection<TitlePerformance> TitlePerformances { get; set; } = new List<TitlePerformance>();
+    public ICollection<AutomationFeedback> FeedbackItems { get; set; } = new List<AutomationFeedback>();
 }

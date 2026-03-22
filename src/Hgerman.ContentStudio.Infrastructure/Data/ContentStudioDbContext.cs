@@ -5,8 +5,7 @@ namespace Hgerman.ContentStudio.Infrastructure.Data;
 
 public class ContentStudioDbContext : DbContext
 {
-    public ContentStudioDbContext(DbContextOptions<ContentStudioDbContext> options)
-        : base(options)
+    public ContentStudioDbContext(DbContextOptions<ContentStudioDbContext> options) : base(options)
     {
     }
 
@@ -16,7 +15,11 @@ public class ContentStudioDbContext : DbContext
     public DbSet<Asset> Assets => Set<Asset>();
     public DbSet<PublishTask> PublishTasks => Set<PublishTask>();
     public DbSet<ErrorLog> ErrorLogs => Set<ErrorLog>();
+
     public DbSet<AutomationProfile> AutomationProfiles => Set<AutomationProfile>();
+    public DbSet<TrendSnapshot> TrendSnapshots => Set<TrendSnapshot>();
+    public DbSet<TitlePerformance> TitlePerformances => Set<TitlePerformance>();
+    public DbSet<AutomationFeedback> AutomationFeedbacks => Set<AutomationFeedback>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -26,7 +29,6 @@ public class ContentStudioDbContext : DbContext
         {
             entity.ToTable("CS_Project");
             entity.HasKey(x => x.ProjectId);
-
             entity.Property(x => x.Name).HasMaxLength(200).IsRequired();
             entity.Property(x => x.Description).HasMaxLength(1000);
         });
@@ -35,6 +37,7 @@ public class ContentStudioDbContext : DbContext
         {
             entity.ToTable("CS_VideoJob");
             entity.HasKey(x => x.VideoJobId);
+
             entity.HasIndex(x => x.JobNo).IsUnique();
 
             entity.Property(x => x.JobNo).HasMaxLength(40).IsRequired();
@@ -48,7 +51,6 @@ public class ContentStudioDbContext : DbContext
             entity.Property(x => x.LockedBy).HasMaxLength(100);
             entity.Property(x => x.MotionMode).HasMaxLength(30);
             entity.Property(x => x.RenderProfile).HasMaxLength(30);
-            entity.Property(x => x.PublishedUrl).HasMaxLength(1000);
 
             entity.HasOne(x => x.Project)
                 .WithMany(x => x.VideoJobs)
@@ -69,7 +71,6 @@ public class ContentStudioDbContext : DbContext
             entity.Property(x => x.SceneText).HasMaxLength(2000).IsRequired();
             entity.Property(x => x.ScenePrompt).HasMaxLength(2000);
             entity.Property(x => x.TransitionType).HasMaxLength(50);
-
             entity.Property(x => x.SourceType).HasMaxLength(30);
             entity.Property(x => x.VisualType).HasMaxLength(30);
             entity.Property(x => x.CameraMotion).HasMaxLength(30);
@@ -157,17 +158,86 @@ public class ContentStudioDbContext : DbContext
             entity.ToTable("CS_AutomationProfile");
             entity.HasKey(x => x.AutomationProfileId);
 
-            entity.Property(x => x.Name).HasMaxLength(200).IsRequired();
+            entity.Property(x => x.Name).HasMaxLength(150).IsRequired();
             entity.Property(x => x.LanguageCode).HasMaxLength(10).IsRequired();
             entity.Property(x => x.PreferredHoursCsv).HasMaxLength(100).IsRequired();
-            entity.Property(x => x.TopicPrompt).IsRequired();
+            entity.Property(x => x.TopicPrompt).HasMaxLength(1000).IsRequired();
             entity.Property(x => x.HookTemplate).HasMaxLength(500);
-            entity.Property(x => x.ViralPatternTemplate).HasMaxLength(1000);
+            entity.Property(x => x.ViralPatternTemplate).HasMaxLength(500);
+            entity.Property(x => x.TrendKeywordsCsv).HasMaxLength(500);
+            entity.Property(x => x.SeedTopicsCsv).HasMaxLength(1000);
+            entity.Property(x => x.GrowthMode).HasMaxLength(30).IsRequired();
+            entity.Property(x => x.MinSuccessScore).HasColumnType("decimal(10,2)");
 
             entity.HasOne(x => x.Project)
                 .WithMany()
                 .HasForeignKey(x => x.ProjectId)
                 .OnDelete(DeleteBehavior.Restrict);
+        });
+
+        modelBuilder.Entity<TrendSnapshot>(entity =>
+        {
+            entity.ToTable("CS_TrendSnapshot");
+            entity.HasKey(x => x.TrendSnapshotId);
+
+            entity.Property(x => x.Keyword).HasMaxLength(150).IsRequired();
+            entity.Property(x => x.TrendTitle).HasMaxLength(300).IsRequired();
+            entity.Property(x => x.TrendScore).HasColumnType("decimal(10,2)");
+            entity.Property(x => x.SourceName).HasMaxLength(100).IsRequired();
+            entity.Property(x => x.Notes).HasMaxLength(1000);
+
+            entity.HasOne(x => x.AutomationProfile)
+                .WithMany(x => x.TrendSnapshots)
+                .HasForeignKey(x => x.AutomationProfileId)
+                .OnDelete(DeleteBehavior.Cascade);
+        });
+
+        modelBuilder.Entity<TitlePerformance>(entity =>
+        {
+            entity.ToTable("CS_TitlePerformance");
+            entity.HasKey(x => x.TitlePerformanceId);
+
+            entity.Property(x => x.OriginalTitle).HasMaxLength(200).IsRequired();
+            entity.Property(x => x.CandidateTitle).HasMaxLength(200).IsRequired();
+            entity.Property(x => x.HookType).HasMaxLength(100);
+            entity.Property(x => x.PatternType).HasMaxLength(100);
+            entity.Property(x => x.PredictedScore).HasColumnType("decimal(10,2)");
+            entity.Property(x => x.ActualScore).HasColumnType("decimal(10,2)");
+            entity.Property(x => x.ClickThroughRate).HasColumnType("decimal(10,4)");
+            entity.Property(x => x.AvgWatchSeconds).HasColumnType("decimal(10,2)");
+            entity.Property(x => x.RetentionRate).HasColumnType("decimal(10,4)");
+
+            entity.HasOne(x => x.VideoJob)
+                .WithMany()
+                .HasForeignKey(x => x.VideoJobId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            entity.HasOne(x => x.AutomationProfile)
+                .WithMany(x => x.TitlePerformances)
+                .HasForeignKey(x => x.AutomationProfileId)
+                .OnDelete(DeleteBehavior.NoAction);
+        });
+
+        modelBuilder.Entity<AutomationFeedback>(entity =>
+        {
+            entity.ToTable("CS_AutomationFeedback");
+            entity.HasKey(x => x.AutomationFeedbackId);
+
+            entity.Property(x => x.FeedbackType).HasMaxLength(50).IsRequired();
+            entity.Property(x => x.Signal).HasMaxLength(100).IsRequired();
+            entity.Property(x => x.ScoreValue).HasColumnType("decimal(10,2)");
+            entity.Property(x => x.Summary).HasMaxLength(1000).IsRequired();
+            entity.Property(x => x.SuggestedAction).HasMaxLength(1000);
+
+            entity.HasOne(x => x.AutomationProfile)
+                .WithMany(x => x.FeedbackItems)
+                .HasForeignKey(x => x.AutomationProfileId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            entity.HasOne(x => x.VideoJob)
+                .WithMany()
+                .HasForeignKey(x => x.VideoJobId)
+                .OnDelete(DeleteBehavior.NoAction);
         });
     }
 }

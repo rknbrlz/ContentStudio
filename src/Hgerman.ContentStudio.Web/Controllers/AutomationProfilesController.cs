@@ -1,88 +1,109 @@
 ﻿using Hgerman.ContentStudio.Application.Interfaces;
 using Hgerman.ContentStudio.Domain.Enums;
-using Hgerman.ContentStudio.Infrastructure.Data;
 using Hgerman.ContentStudio.Web.Models;
 using Microsoft.AspNetCore.Mvc;
-using Microsoft.EntityFrameworkCore;
+using Microsoft.AspNetCore.Mvc.Rendering;
 
 namespace Hgerman.ContentStudio.Web.Controllers;
 
 public class AutomationProfilesController : Controller
 {
-    private readonly ContentStudioDbContext _db;
+    private readonly IAutomationProfileService _automationProfileService;
     private readonly IAutomationService _automationService;
 
     public AutomationProfilesController(
-        ContentStudioDbContext db,
+        IAutomationProfileService automationProfileService,
         IAutomationService automationService)
     {
-        _db = db;
+        _automationProfileService = automationProfileService;
         _automationService = automationService;
     }
 
-    [HttpGet]
     public async Task<IActionResult> Index(CancellationToken cancellationToken)
     {
-        var todayUtc = DateTime.UtcNow.Date;
+        var items = await _automationProfileService.GetListAsync(cancellationToken);
+        return View(items);
+    }
 
-        var profiles = await _db.AutomationProfiles
-            .OrderBy(x => x.AutomationProfileId)
-            .ToListAsync(cancellationToken);
+    public async Task<IActionResult> Details(int id, CancellationToken cancellationToken)
+    {
+        var model = await _automationProfileService.GetDashboardAsync(id, cancellationToken);
+        if (model == null)
+            return NotFound();
 
-        var items = new List<AutomationProfileDashboardItemViewModel>();
+        return View(model);
+    }
 
-        foreach (var profile in profiles)
+    [HttpGet]
+    public IActionResult Create()
+    {
+        PopulateLookups();
+        return View("Edit", new AutomationProfileEditViewModel
         {
-            var prefix = $"AUTO-{profile.AutomationProfileId}-";
+            IsActive = true,
+            ProjectId = 1,
+            LanguageCode = "en",
+            PlatformType = (int)PlatformType.YouTubeShorts,
+            ToneType = (int)ToneType.Inspirational,
+            DurationTargetSec = 45,
+            AspectRatio = (int)AspectRatioType.Vertical916,
+            SubtitleEnabled = true,
+            ThumbnailEnabled = true,
+            DailyVideoLimit = 3,
+            PreferredHoursCsv = "09,14,20",
+            GrowthMode = "balanced",
+            TitleTestVariants = 3,
+            MinSuccessScore = 55
+        });
+    }
 
-            var todayCreatedCount = await _db.VideoJobs.CountAsync(
-                x => x.JobNo.StartsWith(prefix) &&
-                     x.CreatedDate.Date == todayUtc,
-                cancellationToken);
-
-            var completedUnpublishedCount = await _db.VideoJobs.CountAsync(
-                x => x.JobNo.StartsWith(prefix) &&
-                     x.Status == VideoJobStatus.Completed &&
-                     !x.IsPublished,
-                cancellationToken);
-
-            items.Add(new AutomationProfileDashboardItemViewModel
-            {
-                AutomationProfileId = profile.AutomationProfileId,
-                Name = profile.Name,
-                IsActive = profile.IsActive,
-                ProjectId = profile.ProjectId,
-                LanguageCode = profile.LanguageCode,
-                DailyVideoLimit = profile.DailyVideoLimit,
-                PreferredHoursCsv = profile.PreferredHoursCsv,
-                AutoPublishYouTube = profile.AutoPublishYouTube,
-                LastRunAtUtc = profile.LastRunAtUtc,
-                TodayCreatedCount = todayCreatedCount,
-                CompletedUnpublishedCount = completedUnpublishedCount
-            });
+    [HttpPost]
+    [ValidateAntiForgeryToken]
+    public async Task<IActionResult> Create(AutomationProfileEditViewModel model, CancellationToken cancellationToken)
+    {
+        if (!ModelState.IsValid)
+        {
+            PopulateLookups();
+            return View("Edit", model);
         }
 
-        return View(new AutomationProfilesIndexViewModel
+        var id = await _automationProfileService.CreateAsync(model.ToRequest(), cancellationToken);
+        return RedirectToAction(nameof(Details), new { id });
+    }
+
+    [HttpGet]
+    public async Task<IActionResult> Edit(int id, CancellationToken cancellationToken)
+    {
+        var entity = await _automationProfileService.GetByIdAsync(id, cancellationToken);
+        if (entity == null)
+            return NotFound();
+
+        PopulateLookups();
+        return View(AutomationProfileEditViewModel.FromEntity(entity));
+    }
+
+    [HttpPost]
+    [ValidateAntiForgeryToken]
+    public async Task<IActionResult> Edit(AutomationProfileEditViewModel model, CancellationToken cancellationToken)
+    {
+        if (!model.AutomationProfileId.HasValue)
+            return BadRequest();
+
+        if (!ModelState.IsValid)
         {
-            Items = items
-        });
+            PopulateLookups();
+            return View(model);
+        }
+
+        await _automationProfileService.UpdateAsync(model.AutomationProfileId.Value, model.ToRequest(), cancellationToken);
+        return RedirectToAction(nameof(Details), new { id = model.AutomationProfileId.Value });
     }
 
     [HttpPost]
     [ValidateAntiForgeryToken]
     public async Task<IActionResult> Toggle(int id, CancellationToken cancellationToken)
     {
-        var profile = await _db.AutomationProfiles
-            .FirstOrDefaultAsync(x => x.AutomationProfileId == id, cancellationToken);
-
-        if (profile != null)
-        {
-            profile.IsActive = !profile.IsActive;
-            profile.UpdatedDate = DateTime.UtcNow;
-            await _db.SaveChangesAsync(cancellationToken);
-            TempData["SuccessMessage"] = $"Profile {(profile.IsActive ? "activated" : "paused")}.";
-        }
-
+        await _automationProfileService.ToggleActiveAsync(id, cancellationToken);
         return RedirectToAction(nameof(Index));
     }
 
@@ -90,17 +111,29 @@ public class AutomationProfilesController : Controller
     [ValidateAntiForgeryToken]
     public async Task<IActionResult> RunNow(int id, CancellationToken cancellationToken)
     {
-        var createdCount = await _automationService.RunProfileNowAsync(id, cancellationToken);
-        TempData["SuccessMessage"] = $"{createdCount} job(s) created for selected profile.";
-        return RedirectToAction(nameof(Index));
+        await _automationService.RunProfileNowAsync(id, cancellationToken);
+        return RedirectToAction(nameof(Details), new { id });
     }
 
-    [HttpPost]
-    [ValidateAntiForgeryToken]
-    public async Task<IActionResult> RunAllNow(CancellationToken cancellationToken)
+    private void PopulateLookups()
     {
-        var createdCount = await _automationService.RunAllActiveNowAsync(cancellationToken);
-        TempData["SuccessMessage"] = $"{createdCount} automation job(s) created for all active profiles.";
-        return RedirectToAction(nameof(Index));
+        ViewBag.PlatformTypes = Enum.GetValues<PlatformType>()
+            .Select(x => new SelectListItem(x.ToString(), ((int)x).ToString()))
+            .ToList();
+
+        ViewBag.ToneTypes = Enum.GetValues<ToneType>()
+            .Select(x => new SelectListItem(x.ToString(), ((int)x).ToString()))
+            .ToList();
+
+        ViewBag.AspectRatios = Enum.GetValues<AspectRatioType>()
+            .Select(x => new SelectListItem(x.ToString(), ((int)x).ToString()))
+            .ToList();
+
+        ViewBag.GrowthModes = new List<SelectListItem>
+        {
+            new("Safe", "safe"),
+            new("Balanced", "balanced"),
+            new("Aggressive", "aggressive")
+        };
     }
 }
