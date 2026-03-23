@@ -107,7 +107,7 @@ public sealed class JobProcessor : IJobProcessor
 
             failedJob.Status = VideoJobStatus.Failed;
             failedJob.CurrentStep = VideoPipelineStep.Failed;
-            failedJob.ErrorMessage = ex.Message;
+            failedJob.ErrorMessage = Truncate(ex.Message, 2000);
             failedJob.WorkerLockId = null;
             failedJob.LockedBy = null;
             failedJob.LockExpiresAt = null;
@@ -119,9 +119,9 @@ public sealed class JobProcessor : IJobProcessor
             _db.ErrorLogs.Add(new ErrorLog
             {
                 VideoJobId = failedJob.VideoJobId,
-                StepName = failedStep.ToString(),
-                ErrorType = ex.GetType().Name,
-                ErrorMessage = ex.ToString(),
+                StepName = Truncate(failedStep.ToString(), 100),
+                ErrorType = Truncate(ex.GetType().Name, 200),
+                ErrorMessage = Truncate(ex.ToString(), 8000),
                 CreatedDate = DateTime.UtcNow,
                 UpdatedDate = DateTime.UtcNow
             });
@@ -560,5 +560,17 @@ public sealed class JobProcessor : IJobProcessor
         job.UpdatedDate = DateTime.UtcNow;
 
         await _db.SaveChangesAsync(cancellationToken);
+    }
+
+    private static string Truncate(string? value, int maxLength)
+    {
+        if (string.IsNullOrWhiteSpace(value))
+        {
+            return string.Empty;
+        }
+
+        return value.Length <= maxLength
+            ? value
+            : value[..maxLength];
     }
 }

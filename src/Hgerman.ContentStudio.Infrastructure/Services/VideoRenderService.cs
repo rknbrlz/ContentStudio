@@ -143,7 +143,7 @@ public sealed class VideoRenderService : IVideoRenderService
         var lastImagePath = ResolveSceneImagePath(lastScene, scenesFolderPath);
         sb.AppendLine($"file '{EscapeConcatFilePath(lastImagePath)}'");
 
-        File.WriteAllText(concatFilePath, sb.ToString(), Encoding.UTF8);
+        File.WriteAllText(concatFilePath, sb.ToString(), new UTF8Encoding(false));
 
         _logger.LogInformation("Concat file created: {ConcatFilePath}", concatFilePath);
         _logger.LogInformation("Concat file content:{NewLine}{Content}", Environment.NewLine, sb.ToString());
