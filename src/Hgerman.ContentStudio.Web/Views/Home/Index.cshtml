@@ -1,0 +1,132 @@
+@model Hgerman.ContentStudio.Shared.DTOs.DashboardSummaryDto
+
+@{
+    ViewData["Title"] = "Dashboard";
+}
+
+<style>
+    body {
+        background: #0f1115;
+        color: #e8ecf1;
+        font-family: Arial, Helvetica, sans-serif;
+    }
+
+    .dashboard-shell {
+        max-width: 1200px;
+        margin: 30px auto;
+        padding: 0 16px;
+    }
+
+    .dashboard-head {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 20px;
+    }
+
+    .dashboard-title {
+        font-size: 30px;
+        font-weight: 700;
+    }
+
+    .dashboard-sub {
+        color: #9aa4b2;
+        font-size: 14px;
+        margin-top: 6px;
+    }
+
+    .card-grid {
+        display: grid;
+        grid-template-columns: repeat(4, minmax(0, 1fr));
+        gap: 16px;
+        margin-top: 20px;
+    }
+
+    .stat-card {
+        background: #171a21;
+        border: 1px solid #252a34;
+        border-radius: 14px;
+        padding: 20px;
+    }
+
+    .stat-label {
+        font-size: 13px;
+        color: #9aa4b2;
+        margin-bottom: 10px;
+    }
+
+    .stat-value {
+        font-size: 34px;
+        font-weight: 700;
+        color: #ffffff;
+    }
+
+    .actions {
+        margin-top: 28px;
+        display: flex;
+        gap: 12px;
+        flex-wrap: wrap;
+    }
+
+    .btn-link {
+        display: inline-block;
+        padding: 12px 16px;
+        border-radius: 10px;
+        text-decoration: none;
+        color: white;
+        background: #2563eb;
+        border: none;
+    }
+
+        .btn-link.secondary {
+            background: #1f2937;
+        }
+
+    @@media (max-width: 900px) {
+        .card-grid {
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+        }
+    }
+
+    @@media (max-width: 600px) {
+        .card-grid {
+            grid-template-columns: 1fr;
+        }
+    }
+</style>
+
+<div class="dashboard-shell">
+    <div class="dashboard-head">
+        <div>
+            <div class="dashboard-title">Hgerman Content Studio</div>
+            <div class="dashboard-sub">V2 dashboard overview</div>
+        </div>
+    </div>
+
+    <div class="card-grid">
+        <div class="stat-card">
+            <div class="stat-label">Total Jobs</div>
+            <div class="stat-value">@Model.TotalJobs</div>
+        </div>
+
+        <div class="stat-card">
+            <div class="stat-label">Completed Jobs</div>
+            <div class="stat-value">@Model.CompletedJobs</div>
+        </div>
+
+        <div class="stat-card">
+            <div class="stat-label">Queued Jobs</div>
+            <div class="stat-value">@Model.QueuedJobs</div>
+        </div>
+
+        <div class="stat-card">
+            <div class="stat-label">Failed Jobs</div>
+            <div class="stat-value">@Model.FailedJobs</div>
+        </div>
+    </div>
+
+    <div class="actions">
+        <a class="btn-link" href="/VideoJobs">Go to Video Jobs</a>
+        <a class="btn-link secondary" href="/jobs/run">Run Worker Once</a>
+    </div>
+</div>
